@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Tic-Tac-Toe · 4×4×4</title>
+<style>
+:root {
+  --x: #4fc3f7;
+  --o: #f48fb1;
+  --x-bg: rgba(79,195,247,0.15);
+  --o-bg: rgba(244,143,177,0.15);
+  --x-glow: rgba(79,195,247,0.5);
+  --o-glow: rgba(244,143,177,0.5);
+  --bg: #08081a;
+  --surface: #12122a;
+  --surface2: #1a1a38;
+  --border: #2a2a5a;
+  --border2: #3a3a7a;
+  --text: #d0d0f0;
+  --dim: #5050a0;
+  --win-bg: rgba(255,220,50,0.12);
+  --win-border: #ffd700;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 14px;
+  overflow-x: hidden;
+}
+
+/* ── Header ── */
+header { text-align: center; }
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 800;
+  background: linear-gradient(120deg, var(--x), #a78bfa, var(--o));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+.subtitle { color: var(--dim); font-size: 0.85rem; margin-top: 2px; }
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  max-width: 860px;
+  width: 100%;
+}
+
+.ctrl-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.ctrl-label {
+  font-size: 0.7rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 0 6px;
+}
+
+.btn {
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { color: var(--text); background: var(--surface2); border-color: var(--border); }
+.btn.active { color: var(--x); background: rgba(79,195,247,0.12); border-color: var(--x); }
+.btn.danger { color: #f87171; }
+.btn.danger:hover { background: rgba(248,113,113,0.12); border-color: #f87171; }
+
+/* ── Status Bar ── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  width: 100%;
+  max-width: 860px;
+  transition: border-color 0.3s;
+}
+.status-bar.x-turn { border-color: var(--x); }
+.status-bar.o-turn { border-color: var(--o); }
+.status-bar.win { border-color: var(--win-border); }
+.x-mark { color: var(--x); font-weight: 900; }
+.o-mark { color: var(--o); font-weight: 900; }
+
+/* ── Layer View ── */
+.layer-view {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 16px;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.layer-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.layer-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--dim);
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.grid-2d {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ── Cells (shared) ── */
+.cell {
+  width: 48px;
+  height: 48px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 900;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  position: relative;
+  user-select: none;
+}
+.cell:hover:not(.filled) { border-color: var(--border2); background: var(--surface2); }
+.cell.filled { cursor: default; }
+.cell.x { color: var(--x); text-shadow: 0 0 14px var(--x-glow); }
+.cell.o { color: var(--o); text-shadow: 0 0 14px var(--o-glow); }
+
+/* ghost preview on hover */
+body[data-player="X"] .cell:not(.filled):hover::after,
+body[data-player="O"] .cell:not(.filled):hover::after {
+  position: absolute;
+  font-size: 1.3rem;
+  font-weight: 900;
+  opacity: 0.3;
+  pointer-events: none;
+}
+body[data-player="X"] .cell:not(.filled):hover::after { content: "X"; color: var(--x); }
+body[data-player="O"] .cell:not(.filled):hover::after { content: "O"; color: var(--o); }
+
+/* winning cell animation */
+.cell.win-cell {
+  border-color: var(--win-border) !important;
+  background: var(--win-bg) !important;
+  animation: win-pulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes win-pulse {
+  from { transform: scale(1); box-shadow: 0 0 0px var(--win-border); }
+  to { transform: scale(1.07); box-shadow: 0 0 12px var(--win-border); }
+}
+
+/* placed animation */
+@keyframes pop-in {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.cell.just-placed { animation: pop-in 0.25s ease-out; }
+
+/* ── 3D View ── */
+.view-3d-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-3d-container {
+  width: 420px;
+  height: 420px;
+  perspective: 900px;
+  cursor: grab;
+  user-select: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.view-3d-container.dragging { cursor: grabbing; }
+
+.scene-3d {
+  position: relative;
+  transform-style: preserve-3d;
+  width: 234px;
+  height: 234px;
+}
+
+.layer-3d {
+  position: absolute;
+  width: 234px;
+  height: 234px;
+  transform-style: preserve-3d;
+}
+
+.cell-3d {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 900;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+  position: absolute;
+}
+.cell-3d:hover:not(.filled) { border-color: var(--border2); background: var(--surface2); }
+.cell-3d.filled { cursor: default; }
+.cell-3d.x { color: var(--x); text-shadow: 0 0 12px var(--x-glow); }
+.cell-3d.o { color: var(--o); text-shadow: 0 0 12px var(--o-glow); }
+.cell-3d.win-cell {
+  border-color: var(--win-border) !important;
+  background: var(--win-bg) !important;
+  animation: win-pulse 0.9s ease-in-out infinite alternate;
+}
+body[data-player="X"] .cell-3d:not(.filled):hover::after { content: "X"; color: var(--x); opacity: 0.3; font-weight:900; font-size:1.2rem; }
+body[data-player="O"] .cell-3d:not(.filled):hover::after { content: "O"; color: var(--o); opacity: 0.3; font-weight:900; font-size:1.2rem; }
+
+/* Layer label in 3D */
+.layer-3d-label {
+  position: absolute;
+  top: 50%;
+  left: -38px;
+  transform: translateY(-50%);
+  font-size: 0.65rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* 3D view rotation buttons */
+.rot-controls {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Cage lines in 3D ── */
+.cage-line {
+  position: absolute;
+  background: var(--border);
+  pointer-events: none;
+}
+
+/* ── Stack View ── */
+.stack-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.stack-view {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+.stack-layer {
+  position: absolute;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.stack-cell {
+  border-radius: 5px;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+.stack-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 0.7rem;
+  color: var(--dim);
+}
+.stack-legend span { display: flex; align-items: center; gap: 4px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* ── Help ── */
+.help {
+  font-size: 0.75rem;
+  color: var(--dim);
+  text-align: center;
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+/* ── Win overlay ── */
+#win-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+.win-card {
+  background: var(--surface);
+  border: 2px solid var(--win-border);
+  border-radius: 16px;
+  padding: 32px 48px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 0 40px rgba(255,215,0,0.3);
+}
+.win-title { font-size: 2.5rem; }
+.win-msg { font-size: 1.2rem; color: var(--text); }
+.win-sub { font-size: 0.85rem; color: var(--dim); }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .layer-view { grid-template-columns: repeat(2, auto); }
+  .view-3d-container { width: 320px; height: 320px; perspective: 700px; }
+}
+@media (max-width: 400px) {
+  .layer-view { grid-template-columns: repeat(1, auto); }
+  .cell { width: 40px; height: 40px; font-size: 1.2rem; }
+}
+</style>
+</head>
+<body data-player="X">
+
+<header>
+  <h1>3D Tic-Tac-Toe</h1>
+  <p class="subtitle">4 × 4 × 4 &nbsp;·&nbsp; 76 winning lines &nbsp;·&nbsp; Get 4 in a row</p>
+</header>
+
+<nav class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">Mode</span>
+    <button class="btn active" data-mode="hvh">H vs H</button>
+    <button class="btn" data-mode="hvc">H vs CPU</button>
+  </div>
+  <div class="ctrl-group" id="diff-group">
+    <span class="ctrl-label">CPU</span>
+    <button class="btn" data-diff="easy">Easy</button>
+    <button class="btn active" data-diff="medium">Medium</button>
+    <button class="btn" data-diff="hard">Hard</button>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">View</span>
+    <button class="btn active" data-view="layers">Layers</button>
+    <button class="btn" data-view="3d">3D Orbit</button>
+    <button class="btn" data-view="stack">X-Ray</button>
+  </div>
+  <button class="btn danger" id="reset-btn">↺ New Game</button>
+</nav>
+
+<div class="status-bar x-turn" id="status-bar">
+  Player <span class="x-mark">X</span>'s turn
+</div>
+
+<div id="game-area"></div>
+
+<p class="help" id="help-text">
+  Click any cell to place your piece · 3D Orbit: drag to rotate, scroll to zoom · Win by getting 4 in a row in any direction (rows, columns, layers, or diagonals through space)
+</p>
+
+<div id="win-overlay" style="display:none">
+  <div class="win-card">
+    <div class="win-title" id="win-emoji">🎉</div>
+    <div class="win-msg" id="win-msg"></div>
+    <div class="win-sub" id="win-sub"></div>
+    <button class="btn active" id="win-play-again" style="margin-top:8px;font-size:1rem;padding:10px 28px">Play Again</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════ */
+const N = 4;
+const LAYER_NAMES = ['Layer 1 (Bottom)', 'Layer 2', 'Layer 3', 'Layer 4 (Top)'];
+const CELL_STEP_3D = 58;   // cell size + gap in 3D view
+
+/* ═══════════════════════════════════════════════════
+   WIN LINES — all 76 lines in a 4×4×4 board
+═══════════════════════════════════════════════════ */
+const WIN_LINES = (function buildWinLines() {
+  const L = [];
+  const add = (...pts) => L.push(pts);
+
+  for (let a = 0; a < N; a++) {
+    for (let b = 0; b < N; b++) {
+      // X-axis lines  (z=a, y=b, x varies)
+      add([a,b,0],[a,b,1],[a,b,2],[a,b,3]);
+      // Y-axis lines  (z=a, y varies, x=b)
+      add([a,0,b],[a,1,b],[a,2,b],[a,3,b]);
+      // Z-axis lines  (z varies, y=a, x=b)
+      add([0,a,b],[1,a,b],[2,a,b],[3,a,b]);
+    }
+    // XY diagonals in layer z=a
+    add([a,0,0],[a,1,1],[a,2,2],[a,3,3]);
+    add([a,0,3],[a,1,2],[a,2,1],[a,3,0]);
+    // XZ diagonals in row y=a
+    add([0,a,0],[1,a,1],[2,a,2],[3,a,3]);
+    add([0,a,3],[1,a,2],[2,a,1],[3,a,0]);
+    // YZ diagonals in column x=a
+    add([0,0,a],[1,1,a],[2,2,a],[3,3,a]);
+    add([0,3,a],[1,2,a],[2,1,a],[3,0,a]);
+  }
+  // 4 space diagonals
+  add([0,0,0],[1,1,1],[2,2,2],[3,3,3]);
+  add([0,0,3],[1,1,2],[2,2,1],[3,3,0]);
+  add([0,3,0],[1,2,1],[2,1,2],[3,0,3]);
+  add([0,3,3],[1,2,2],[2,1,1],[3,0,0]);
+  return L;  // 76 lines
+})();
+
+/* ═══════════════════════════════════════════════════
+   BOARD UTILS
+═══════════════════════════════════════════════════ */
+function emptyBoard() {
+  return Array.from({length:N}, () =>
+    Array.from({length:N}, () => Array(N).fill(null)));
+}
+
+function cloneBoard(b) {
+  return b.map(layer => layer.map(row => [...row]));
+}
+
+function emptyCells(b) {
+  const out = [];
+  for (let z = 0; z < N; z++)
+    for (let y = 0; y < N; y++)
+      for (let x = 0; x < N; x++)
+        if (!b[z][y][x]) out.push([z,y,x]);
+  return out;
+}
+
+function isFull(b) { return emptyCells(b).length === 0; }
+
+/* ═══════════════════════════════════════════════════
+   WIN DETECTION
+═══════════════════════════════════════════════════ */
+function checkWinner(b) {
+  for (const line of WIN_LINES) {
+    const v = b[line[0][0]][line[0][1]][line[0][2]];
+    if (v && line.every(([z,y,x]) => b[z][y][x] === v))
+      return { player: v, line };
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════
+   AI — EASY
+═══════════════════════════════════════════════════ */
+function aiEasy(b) {
+  const cells = emptyCells(b);
+  return cells[Math.floor(Math.random() * cells.length)];
+}
+
+/* ═══════════════════════════════════════════════════
+   AI — MEDIUM (tactical: win/block/setup/random)
+═══════════════════════════════════════════════════ */
+function findWinningMove(b, player) {
+  for (const [z,y,x] of emptyCells(b)) {
+    b[z][y][x] = player;
+    const won = checkWinner(b);
+    b[z][y][x] = null;
+    if (won) return [z,y,x];
+  }
+  return null;
+}
+
+function findForkMove(b, player) {
+  // Find a move that creates 2+ winning threats simultaneously
+  let best = null, bestThreats = 1;
+  for (const [z,y,x] of emptyCells(b)) {
+    b[z][y][x] = player;
+    let threats = 0;
+    for (const [z2,y2,x2] of emptyCells(b)) {
+      b[z2][y2][x2] = player;
+      if (checkWinner(b)) threats++;
+      b[z2][y2][x2] = null;
+    }
+    b[z][y][x] = null;
+    if (threats > bestThreats) { bestThreats = threats; best = [z,y,x]; }
+  }
+  return best;
+}
+
+function aiMedium(b, player) {
+  const opp = player === 'X' ? 'O' : 'X';
+  return findWinningMove(b, player)
+      || findWinningMove(b, opp)
+      || findForkMove(b, player)
+      || findForkMove(b, opp)
+      || aiEasy(b);
+}
+
+/* ═══════════════════════════════════════════════════
+   AI — HARD (minimax + alpha-beta)
+═══════════════════════════════════════════════════ */
+function scoreBoard(b, aiPlayer) {
+  const opp = aiPlayer === 'X' ? 'O' : 'X';
+  let score = 0;
+  for (const line of WIN_LINES) {
+    let ai = 0, op = 0;
+    for (const [z,y,x] of line) {
+      const v = b[z][y][x];
+      if (v === aiPlayer) ai++;
+      else if (v === opp) op++;
+    }
+    if (op === 0 && ai > 0) score += ai === 4 ? 100000 : ai === 3 ? 300 : ai === 2 ? 20 : 2;
+    if (ai === 0 && op > 0) score -= op === 4 ? 100000 : op === 3 ? 300 : op === 2 ? 20 : 2;
+  }
+  return score;
+}
+
+// Order moves: near existing pieces and center first (helps alpha-beta)
+function orderedMoves(b, cells) {
+  return cells.map(([z,y,x]) => {
+    let s = -(Math.abs(z-1.5) + Math.abs(y-1.5) + Math.abs(x-1.5));
+    for (let dz=-1; dz<=1; dz++) for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+      const nz=z+dz,ny=y+dy,nx=x+dx;
+      if (nz>=0&&nz<N&&ny>=0&&ny<N&&nx>=0&&nx<N&&b[nz][ny][nx]) s += 3;
+    }
+    return { pos:[z,y,x], s };
+  }).sort((a,b) => b.s - a.s).map(m => m.pos);
+}
+
+function minimax(b, depth, alpha, beta, maximizing, aiPlayer, opp) {
+  const winner = checkWinner(b);
+  if (winner) return winner.player === aiPlayer ? 100000 + depth : -100000 - depth;
+  if (depth === 0 || isFull(b)) return scoreBoard(b, aiPlayer);
+
+  const cells = orderedMoves(b, emptyCells(b));
+  if (maximizing) {
+    let best = -Infinity;
+    for (const [z,y,x] of cells) {
+      b[z][y][x] = aiPlayer;
+      best = Math.max(best, minimax(b, depth-1, alpha, beta, false, aiPlayer, opp));
+      b[z][y][x] = null;
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const [z,y,x] of cells) {
+      b[z][y][x] = opp;
+      best = Math.min(best, minimax(b, depth-1, alpha, beta, true, aiPlayer, opp));
+      b[z][y][x] = null;
+      beta = Math.min(beta, best);
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+}
+
+function aiHard(b, player) {
+  const opp = player === 'X' ? 'O' : 'X';
+  const empty = emptyCells(b);
+
+  // Opening: prefer inner cube
+  if (empty.length >= 60) {
+    const inner = [[1,1,1],[1,1,2],[1,2,1],[1,2,2],[2,1,1],[2,1,2],[2,2,1],[2,2,2]];
+    const avail = inner.filter(([z,y,x]) => !b[z][y][x]);
+    if (avail.length) return avail[Math.floor(Math.random() * avail.length)];
+  }
+
+  // Immediate win/block
+  const win = findWinningMove(b, player);
+  if (win) return win;
+  const block = findWinningMove(b, opp);
+  if (block) return block;
+
+  // Depth scales with board fill
+  const filled = 64 - empty.length;
+  const depth = filled < 8 ? 2 : filled < 20 ? 3 : filled < 40 ? 4 : 5;
+
+  const moves = orderedMoves(b, empty);
+  let bestScore = -Infinity, bestMove = moves[0];
+  for (const [z,y,x] of moves) {
+    b[z][y][x] = player;
+    const s = minimax(b, depth-1, -Infinity, Infinity, false, player, opp);
+    b[z][y][x] = null;
+    if (s > bestScore) { bestScore = s; bestMove = [z,y,x]; }
+  }
+  return bestMove;
+}
+
+/* ═══════════════════════════════════════════════════
+   GAME STATE
+═══════════════════════════════════════════════════ */
+let board = emptyBoard();
+let currentPlayer = 'X';
+let gameMode = 'hvh';
+let difficulty = 'medium';
+let view = 'layers';
+let gameOver = false;
+let winResult = null;
+let thinking = false;
+let lastMove = null;
+
+/* ═══════════════════════════════════════════════════
+   RENDERING — LAYER VIEW
+═══════════════════════════════════════════════════ */
+function renderLayers() {
+  const area = document.getElementById('game-area');
+  area.innerHTML = '';
+  area.className = 'layer-view';
+
+  for (let z = 0; z < N; z++) {
+    const panel = document.createElement('div');
+    panel.className = 'layer-panel';
+
+    const badge = document.createElement('div');
+    badge.className = 'layer-badge';
+    badge.textContent = LAYER_NAMES[z];
+    panel.appendChild(badge);
+
+    const grid = document.createElement('div');
+    grid.className = 'grid-2d';
+
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const cell = makeCell2D(z, y, x);
+        grid.appendChild(cell);
+      }
+    }
+    panel.appendChild(grid);
+    area.appendChild(panel);
+  }
+}
+
+function makeCell2D(z, y, x) {
+  const cell = document.createElement('div');
+  const val = board[z][y][x];
+  cell.className = 'cell' + (val ? ` filled ${val.toLowerCase()}` : '');
+  if (val) cell.textContent = val;
+  if (winResult && isWinCell(z,y,x)) cell.classList.add('win-cell');
+  if (lastMove && lastMove[0]===z && lastMove[1]===y && lastMove[2]===x)
+    cell.classList.add('just-placed');
+  if (!gameOver && !val) {
+    cell.addEventListener('click', () => handleCellClick(z, y, x));
+  }
+  return cell;
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDERING — 3D ORBIT VIEW
+═══════════════════════════════════════════════════ */
+let rotX = 52, rotY = -28, zoom = 1;
+
+function render3D() {
+  const area = document.getElementById('game-area');
+  area.innerHTML = '';
+  area.className = 'view-3d-wrapper';
+
+  const container = document.createElement('div');
+  container.className = 'view-3d-container';
+
+  const scene = document.createElement('div');
+  scene.className = 'scene-3d';
+  scene.id = 'scene-3d';
+  applySceneTransform(scene);
+
+  const LAYER_Z = [-135, -45, 45, 135];
+
+  for (let z = 0; z < N; z++) {
+    const layer = document.createElement('div');
+    layer.className = 'layer-3d';
+    layer.style.transform = `translateZ(${LAYER_Z[z]}px)`;
+
+    // Label
+    const lbl = document.createElement('div');
+    lbl.className = 'layer-3d-label';
+    lbl.textContent = `L${z+1}`;
+    layer.appendChild(lbl);
+
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const cell = makeCell3D(z, y, x);
+        layer.appendChild(cell);
+      }
+    }
+    scene.appendChild(layer);
+  }
+
+  container.appendChild(scene);
+  area.appendChild(container);
+
+  // Rotation buttons
+  const rotBtns = document.createElement('div');
+  rotBtns.className = 'rot-controls';
+  [{label:'↻ Reset View', action: () => { rotX=52; rotY=-28; zoom=1; refreshScene(); }},
+   {label:'⊕ Top View',   action: () => { rotX=80; rotY=0; refreshScene(); }},
+   {label:'⊙ Side View',  action: () => { rotX=10; rotY=0; refreshScene(); }},
+  ].forEach(({label, action}) => {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = label;
+    b.addEventListener('click', action);
+    rotBtns.appendChild(b);
+  });
+  area.appendChild(rotBtns);
+
+  // Drag events
+  container.addEventListener('mousedown', onMouseDown);
+  container.addEventListener('wheel', onWheel, {passive: true});
+  container.addEventListener('touchstart', onTouchStart, {passive: true});
+}
+
+function makeCell3D(z, y, x) {
+  const cell = document.createElement('div');
+  const val = board[z][y][x];
+  cell.className = 'cell-3d' + (val ? ` filled ${val.toLowerCase()}` : '');
+  cell.style.left = `${x * CELL_STEP_3D}px`;
+  cell.style.top  = `${y * CELL_STEP_3D}px`;
+  if (val) cell.textContent = val;
+  if (winResult && isWinCell(z,y,x)) cell.classList.add('win-cell');
+  if (lastMove && lastMove[0]===z && lastMove[1]===y && lastMove[2]===x)
+    cell.classList.add('just-placed');
+  if (!gameOver && !val) {
+    cell.addEventListener('click', (e) => { e.stopPropagation(); handleCellClick(z,y,x); });
+  }
+  return cell;
+}
+
+function applySceneTransform(scene) {
+  if (!scene) scene = document.getElementById('scene-3d');
+  if (scene) scene.style.transform =
+    `scale(${zoom}) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+}
+
+function refreshScene() { applySceneTransform(); }
+
+/* ═══════════════════════════════════════════════════
+   RENDERING — X-RAY STACK VIEW
+═══════════════════════════════════════════════════ */
+const LAYER_COLORS = [
+  'rgba(255,200,50,',   // L1 yellow
+  'rgba(100,220,100,',  // L2 green
+  'rgba(100,180,255,',  // L3 blue
+  'rgba(255,100,200,',  // L4 pink
+];
+
+function renderStack() {
+  const area = document.getElementById('game-area');
+  area.innerHTML = '';
+  area.className = 'stack-view-wrapper';
+
+  const title = document.createElement('p');
+  title.style.cssText = 'font-size:.75rem;color:var(--dim);text-align:center;margin-bottom:4px';
+  title.textContent = 'All layers overlaid · opacity = piece depth';
+  area.appendChild(title);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'stack-view';
+
+  for (let z = 0; z < N; z++) {
+    const slayer = document.createElement('div');
+    slayer.className = 'stack-layer';
+    const opacity = 0.3 + z * 0.17;  // deeper = more opaque
+
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const sc = document.createElement('div');
+        sc.className = 'stack-cell';
+        const val = board[z][y][x];
+        if (val) {
+          sc.textContent = val;
+          sc.style.color = LAYER_COLORS[z] + opacity + ')';
+          sc.style.background = LAYER_COLORS[z] + (opacity*0.3) + ')';
+          sc.style.border = `1px solid ${LAYER_COLORS[z]}${opacity})`;
+        }
+        slayer.appendChild(sc);
+      }
+    }
+    wrapper.appendChild(slayer);
+  }
+  area.appendChild(wrapper);
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'stack-legend';
+  for (let z = 0; z < N; z++) {
+    const span = document.createElement('span');
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = LAYER_COLORS[z] + '0.6)';
+    span.appendChild(swatch);
+    span.appendChild(document.createTextNode(`L${z+1}`));
+    legend.appendChild(span);
+  }
+  area.appendChild(legend);
+
+  // Interactive: click on stack to jump to layer view
+  const note = document.createElement('p');
+  note.style.cssText = 'font-size:.7rem;color:var(--dim);margin-top:8px';
+  note.textContent = '(X-Ray view is read-only — switch to Layers view to play)';
+  area.appendChild(note);
+}
+
+/* ═══════════════════════════════════════════════════
+   STATUS BAR
+═══════════════════════════════════════════════════ */
+function updateStatus() {
+  const bar = document.getElementById('status-bar');
+  bar.className = 'status-bar';
+  if (gameOver) {
+    bar.classList.add('win');
+    if (winResult) {
+      const p = winResult.player, cls = p === 'X' ? 'x-mark' : 'o-mark';
+      bar.innerHTML = `Player <span class="${cls}">${p}</span> wins! 🎉`;
+    } else {
+      bar.innerHTML = 'Draw! All 64 cells filled with no winner.';
+    }
+  } else if (thinking) {
+    bar.innerHTML = '<em>CPU is thinking…</em>';
+  } else {
+    const p = currentPlayer, cls = p === 'X' ? 'x-mark' : 'o-mark';
+    const who = (gameMode === 'hvc' && p === 'O') ? ' (CPU)' : '';
+    bar.classList.add(p === 'X' ? 'x-turn' : 'o-turn');
+    bar.innerHTML = `Player <span class="${cls}">${p}</span>${who}'s turn`;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER DISPATCHER
+═══════════════════════════════════════════════════ */
+function render() {
+  document.body.dataset.player = gameOver ? '' : currentPlayer;
+  if (view === '3d') render3D();
+  else if (view === 'stack') renderStack();
+  else renderLayers();
+  updateStatus();
+}
+
+/* ═══════════════════════════════════════════════════
+   WIN CELL CHECK
+═══════════════════════════════════════════════════ */
+function isWinCell(z, y, x) {
+  return winResult && winResult.line.some(([wz,wy,wx]) => wz===z && wy===y && wx===x);
+}
+
+/* ═══════════════════════════════════════════════════
+   CELL CLICK → GAME LOGIC
+═══════════════════════════════════════════════════ */
+function handleCellClick(z, y, x) {
+  if (gameOver || thinking) return;
+  if (board[z][y][x]) return;
+  placeMove(z, y, x);
+  if (!gameOver && gameMode === 'hvc' && currentPlayer === 'O') {
+    thinking = true;
+    updateStatus();
+    setTimeout(doCPUMove, 350);
+  }
+}
+
+function placeMove(z, y, x) {
+  board[z][y][x] = currentPlayer;
+  lastMove = [z, y, x];
+  const result = checkWinner(board);
+  if (result) {
+    winResult = result;
+    gameOver = true;
+    render();
+    showWinOverlay(result.player);
+    return;
+  }
+  if (isFull(board)) {
+    gameOver = true;
+    render();
+    showWinOverlay(null);
+    return;
+  }
+  currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+  render();
+}
+
+function doCPUMove() {
+  const move = getCPUMove();
+  thinking = false;
+  if (move) placeMove(...move);
+  else render();
+}
+
+function getCPUMove() {
+  if (difficulty === 'easy')   return aiEasy(board);
+  if (difficulty === 'medium') return aiMedium(board, 'O');
+  return aiHard(board, 'O');
+}
+
+/* ═══════════════════════════════════════════════════
+   WIN OVERLAY
+═══════════════════════════════════════════════════ */
+function showWinOverlay(player) {
+  const overlay = document.getElementById('win-overlay');
+  const emoji = document.getElementById('win-emoji');
+  const msg   = document.getElementById('win-msg');
+  const sub   = document.getElementById('win-sub');
+  if (player) {
+    emoji.textContent = player === 'X' ? '🎊' : '🏆';
+    const cls = player === 'X' ? 'x-mark' : 'o-mark';
+    msg.innerHTML = `Player <span class="${cls}">${player}</span> wins!`;
+    sub.textContent = `4 in a row · ${WIN_LINES.length} possible winning lines`;
+  } else {
+    emoji.textContent = '🤝';
+    msg.textContent = "It's a Draw!";
+    sub.textContent = 'All 64 cells filled — no winner.';
+  }
+  overlay.style.display = 'flex';
+}
+
+function hideWinOverlay() {
+  document.getElementById('win-overlay').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════
+   3D DRAG TO ROTATE
+═══════════════════════════════════════════════════ */
+let dragging = false, lastMX = 0, lastMY = 0;
+
+function onMouseDown(e) {
+  if (e.button !== 0) return;
+  dragging = true;
+  lastMX = e.clientX; lastMY = e.clientY;
+  e.currentTarget.classList.add('dragging');
+}
+
+function onGlobalMouseMove(e) {
+  if (!dragging || view !== '3d') return;
+  const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
+  lastMX = e.clientX; lastMY = e.clientY;
+  rotY += dx * 0.55;
+  rotX -= dy * 0.55;
+  rotX = Math.max(-85, Math.min(85, rotX));
+  refreshScene();
+}
+
+function onGlobalMouseUp() {
+  dragging = false;
+  const c = document.querySelector('.view-3d-container');
+  if (c) c.classList.remove('dragging');
+}
+
+function onWheel(e) {
+  zoom = Math.max(0.5, Math.min(2, zoom - e.deltaY * 0.001));
+  refreshScene();
+}
+
+let touchLastX = 0, touchLastY = 0;
+function onTouchStart(e) {
+  touchLastX = e.touches[0].clientX;
+  touchLastY = e.touches[0].clientY;
+}
+function onGlobalTouchMove(e) {
+  if (view !== '3d' || !e.touches.length) return;
+  const dx = e.touches[0].clientX - touchLastX;
+  const dy = e.touches[0].clientY - touchLastY;
+  touchLastX = e.touches[0].clientX;
+  touchLastY = e.touches[0].clientY;
+  rotY += dx * 0.55;
+  rotX -= dy * 0.55;
+  rotX = Math.max(-85, Math.min(85, rotX));
+  refreshScene();
+}
+
+/* ═══════════════════════════════════════════════════
+   CONTROLS / SETTINGS
+═══════════════════════════════════════════════════ */
+function setMode(mode) {
+  gameMode = mode;
+  document.getElementById('diff-group').style.opacity = mode === 'hvc' ? '1' : '0.4';
+  document.querySelectorAll('[data-mode]').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode));
+  resetGame();
+}
+
+function setDifficulty(diff) {
+  difficulty = diff;
+  document.querySelectorAll('[data-diff]').forEach(b =>
+    b.classList.toggle('active', b.dataset.diff === diff));
+}
+
+function setView(v) {
+  view = v;
+  document.querySelectorAll('[data-view]').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === v));
+  const help = document.getElementById('help-text');
+  if (v === '3d')
+    help.textContent = 'Drag to rotate · Scroll to zoom · 3D Orbit view — click any cell to play';
+  else if (v === 'stack')
+    help.textContent = 'X-Ray view: all 4 layers overlaid with transparency. Each color = one layer.';
+  else
+    help.textContent = 'Click any cell to place your piece. Win by getting 4 in a row in any direction — row, column, layer, or space diagonal.';
+  render();
+}
+
+function resetGame() {
+  board = emptyBoard();
+  currentPlayer = 'X';
+  gameOver = false;
+  winResult = null;
+  thinking = false;
+  lastMove = null;
+  hideWinOverlay();
+  render();
+}
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+function init() {
+  // Global mouse/touch events for 3D drag
+  document.addEventListener('mousemove', onGlobalMouseMove);
+  document.addEventListener('mouseup', onGlobalMouseUp);
+  document.addEventListener('touchmove', onGlobalTouchMove, {passive: true});
+
+  // Wire mode buttons
+  document.querySelectorAll('[data-mode]').forEach(b =>
+    b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+  // Wire difficulty buttons
+  document.querySelectorAll('[data-diff]').forEach(b =>
+    b.addEventListener('click', () => setDifficulty(b.dataset.diff)));
+
+  // Wire view buttons
+  document.querySelectorAll('[data-view]').forEach(b =>
+    b.addEventListener('click', () => setView(b.dataset.view)));
+
+  // Reset button
+  document.getElementById('reset-btn').addEventListener('click', resetGame);
+
+  // Win overlay play again
+  document.getElementById('win-play-again').addEventListener('click', () => {
+    hideWinOverlay();
+    resetGame();
+  });
+
+  // Diff group initially dimmed in H vs H mode
+  document.getElementById('diff-group').style.opacity = '0.4';
+
+  // Start
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
