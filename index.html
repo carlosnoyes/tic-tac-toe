@@ -300,45 +300,6 @@ body[data-player="O"] .cell-3d:not(.filled):hover::after { content: "O"; color: 
   pointer-events: none;
 }
 
-/* ── Stack View ── */
-.stack-view-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.stack-view {
-  position: relative;
-  width: 220px;
-  height: 220px;
-}
-.stack-layer {
-  position: absolute;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  top: 0; left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.stack-cell {
-  border-radius: 5px;
-  border: 1px solid transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  font-weight: 900;
-}
-.stack-legend {
-  display: flex;
-  gap: 12px;
-  font-size: 0.7rem;
-  color: var(--dim);
-}
-.stack-legend span { display: flex; align-items: center; gap: 4px; }
-.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
 /* ── Help ── */
 .help {
@@ -410,7 +371,6 @@ body[data-player="O"] .cell-3d:not(.filled):hover::after { content: "O"; color: 
     <span class="ctrl-label">View</span>
     <button class="btn active" data-view="layers">Layers</button>
     <button class="btn" data-view="3d">3D Orbit</button>
-    <button class="btn" data-view="stack">X-Ray</button>
   </div>
   <button class="btn danger" id="reset-btn">↺ New Game</button>
 </nav>
@@ -430,7 +390,10 @@ body[data-player="O"] .cell-3d:not(.filled):hover::after { content: "O"; color: 
     <div class="win-title" id="win-emoji">🎉</div>
     <div class="win-msg" id="win-msg"></div>
     <div class="win-sub" id="win-sub"></div>
-    <button class="btn active" id="win-play-again" style="margin-top:8px;font-size:1rem;padding:10px 28px">Play Again</button>
+    <div style="display:flex;gap:10px;margin-top:12px;justify-content:center">
+      <button class="btn" id="win-close" style="font-size:1rem;padding:10px 20px">Close</button>
+      <button class="btn active" id="win-play-again" style="font-size:1rem;padding:10px 20px">New Game</button>
+    </div>
   </div>
 </div>
 
@@ -808,62 +771,6 @@ const LAYER_COLORS = [
   'rgba(255,100,200,',  // L4 pink
 ];
 
-function renderStack() {
-  const area = document.getElementById('game-area');
-  area.innerHTML = '';
-  area.className = 'stack-view-wrapper';
-
-  const title = document.createElement('p');
-  title.style.cssText = 'font-size:.75rem;color:var(--dim);text-align:center;margin-bottom:4px';
-  title.textContent = 'All layers overlaid · opacity = piece depth';
-  area.appendChild(title);
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'stack-view';
-
-  for (let z = 0; z < N; z++) {
-    const slayer = document.createElement('div');
-    slayer.className = 'stack-layer';
-    const opacity = 0.3 + z * 0.17;  // deeper = more opaque
-
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        const sc = document.createElement('div');
-        sc.className = 'stack-cell';
-        const val = board[z][y][x];
-        if (val) {
-          sc.textContent = val;
-          sc.style.color = LAYER_COLORS[z] + opacity + ')';
-          sc.style.background = LAYER_COLORS[z] + (opacity*0.3) + ')';
-          sc.style.border = `1px solid ${LAYER_COLORS[z]}${opacity})`;
-        }
-        slayer.appendChild(sc);
-      }
-    }
-    wrapper.appendChild(slayer);
-  }
-  area.appendChild(wrapper);
-
-  // Legend
-  const legend = document.createElement('div');
-  legend.className = 'stack-legend';
-  for (let z = 0; z < N; z++) {
-    const span = document.createElement('span');
-    const swatch = document.createElement('span');
-    swatch.className = 'swatch';
-    swatch.style.background = LAYER_COLORS[z] + '0.6)';
-    span.appendChild(swatch);
-    span.appendChild(document.createTextNode(`L${z+1}`));
-    legend.appendChild(span);
-  }
-  area.appendChild(legend);
-
-  // Interactive: click on stack to jump to layer view
-  const note = document.createElement('p');
-  note.style.cssText = 'font-size:.7rem;color:var(--dim);margin-top:8px';
-  note.textContent = '(X-Ray view is read-only — switch to Layers view to play)';
-  area.appendChild(note);
-}
 
 /* ═══════════════════════════════════════════════════
    STATUS BAR
@@ -895,7 +802,6 @@ function updateStatus() {
 function render() {
   document.body.dataset.player = gameOver ? '' : currentPlayer;
   if (view === '3d') render3D();
-  else if (view === 'stack') renderStack();
   else renderLayers();
   updateStatus();
 }
@@ -1054,8 +960,6 @@ function setView(v) {
   const help = document.getElementById('help-text');
   if (v === '3d')
     help.textContent = 'Drag to rotate · Scroll to zoom · 3D Orbit view — click any cell to play';
-  else if (v === 'stack')
-    help.textContent = 'X-Ray view: all 4 layers overlaid with transparency. Each color = one layer.';
   else
     help.textContent = 'Click any cell to place your piece. Win by getting 4 in a row in any direction — row, column, layer, or space diagonal.';
   render();
@@ -1096,7 +1000,8 @@ function init() {
   // Reset button
   document.getElementById('reset-btn').addEventListener('click', resetGame);
 
-  // Win overlay play again
+  // Win overlay buttons
+  document.getElementById('win-close').addEventListener('click', hideWinOverlay);
   document.getElementById('win-play-again').addEventListener('click', () => {
     hideWinOverlay();
     resetGame();
