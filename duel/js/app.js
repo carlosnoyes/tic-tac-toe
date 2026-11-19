@@ -20,7 +20,7 @@
     code: null,
     oppName: null,
     connected: false,
-    settings: Object.assign({ rounds: 5, diff: 'normal', bot: 'pro', order: 'random', pool: P.list.map(p => p.id) }, store('settings') || {}),
+    settings: Object.assign({ rounds: 5, diff: 'normal', bot: 'pro', order: 'random', powerups: 'on', pool: P.list.map(p => p.id) }, store('settings') || {}),
     match: null,
     round: null,
     rematch: { host: false, guest: false },
@@ -112,6 +112,7 @@
     const online = S.mode === 'host' || S.mode === 'guest';
     $('invite-panel').classList.toggle('hidden', !online);
     $('bot-setting').classList.toggle('hidden', S.mode !== 'bot');
+    $('power-setting').classList.toggle('hidden', S.mode === 'local');
     $('lobby-title').textContent = S.mode === 'bot' ? 'Vs Bot' : S.mode === 'local' ? 'Pass & Play' : 'Online room';
     $('lobby-me').textContent = myName();
     $('lobby-me-role').textContent = S.mode === 'guest' ? 'Guest' : S.mode === 'local' ? 'Player 1' : 'Host';
@@ -335,6 +336,9 @@
         if (S.mode === 'guest') { markPicked(m.pid); return; }
         if (S.pickFor === 'guest') { S.pickFor = null; markPicked(m.pid); send({ t: 'picked', pid: m.pid }); setTimeout(() => hostNextRound(m.pid), 700); }
         break;
+      case 'freeze':
+        if (S.round && m.i === S.round.i) receiveFreeze();
+        break;
       case 'emote':
         showEmote('opp', m.e);
         break;
@@ -361,6 +365,7 @@
       diff: S.settings.diff,
       pool: S.settings.pool.slice(),
       order: S.settings.order || 'random',
+      powerups: S.mode !== 'local' && S.settings.powerups === 'on',
     };
     send({ t: 'match', match });
     beginMatch(match);
@@ -509,6 +514,7 @@
         if (!R.startAt) { R.initProg = p; return; } // reported while building, before GO
         if (!R.active) return;
         lastP = p; R.prog[actor] = p; setBar(actor, p);
+        if (p >= 0.5 && !R.powerUsed) updatePowerButton();
         R.samples.push([performance.now() - R.startAt, p]);
         if (S.mode === 'host' || S.mode === 'guest') {
           const now = performance.now();
@@ -540,6 +546,7 @@
       R.active = true; R.startAt = performance.now();
       R.myDone = false;
       if (R.initProg) api.progress(R.initProg);
+      updatePowerButton();
       if (S.mode === 'bot') startBot(R);
       if (S.mode === 'daily') startDailyGhost(R);
       if (S.mode === 'local' && R.turn === 'guest') startGhost(R);
@@ -634,6 +641,7 @@
     }
     cancelAnimationFrame(rafId);
     overlay('penalty', false); overlay('waiting', false);
+    if ($('btn-power')) { $('btn-power').disabled = true; $('btn-power').classList.remove('ready'); }
     clearInterval(cdTimer);
   }
 
@@ -902,22 +910,64 @@
     $('daily-sub').textContent = pool.map(id => P.byId[id].icon).join(' ') + '  ·  ' + (mine ? `Today: ${mine.times.every(t => t != null) ? fmtTime(mine.total) : 'DNF'} — play again?` : 'Same 3 puzzles for everyone today');
   }
 
+  // ─────────────── power-ups ───────────────
+  const FREEZE_MS = 3000;
+  function powerupsActive() { return !!(S.match && S.match.powerups) && S.mode !== 'local' && S.mode !== 'daily'; }
+  function updatePowerButton() {
+    const btn = $('btn-power');
+    const R = S.round;
+    if (!powerupsActive()) { btn.classList.add('hidden'); return; }
+    btn.classList.remove('hidden');
+    const ready = R && R.active && !R.powerUsed && (R.prog[myRole()] || 0) >= 0.5;
+    btn.disabled = !ready;
+    btn.classList.toggle('ready', !!ready);
+    btn.textContent = R && R.powerUsed ? '❄️ Used' : ready ? '❄️ FREEZE!' : '❄️ at 50%';
+  }
+  function usePower() {
+    const R = S.round;
+    if (!R || !R.active || R.powerUsed || (R.prog[myRole()] || 0) < 0.5) return;
+    R.powerUsed = true;
+    R.oppFrozenUntil = performance.now() + FREEZE_MS;
+    Sound.tone(1400, 0.25, 'sine', 0.06); Sound.tone(1800, 0.25, 'sine', 0.04, 0.08);
+    send({ t: 'freeze', i: R.i });
+    showEmote('me', '❄️');
+    toast(`Froze ${nameOf(oppRole())} for 3 seconds!`);
+    const opp = document.querySelector('.hud-player.opp'); opp.classList.add('frozen');
+    setTimeout(() => opp.classList.remove('frozen'), FREEZE_MS);
+    updatePowerButton();
+  }
+  function receiveFreeze() {
+    const R = S.round;
+    if (!R || !R.active || !R.attempt) return;
+    R.attempt.api.penalty(FREEZE_MS, `❄️ ${nameOf(oppRole())} froze you!`);
+    $('penalty').classList.add('ice');
+    setTimeout(() => $('penalty').classList.remove('ice'), FREEZE_MS);
+    Sound.tone(300, 0.4, 'triangle', 0.07);
+  }
+
   // ─────────────── bot ───────────────
   function startBot(R) {
     const pz = P.byId[R.pid];
     const base = (pz.bot[R.diff] || 40) * BOT_SKILL[S.settings.bot];
     const total = base * (0.8 + Math.random() * 0.45) * 1000;
-    let p = 0, stall = 0;
+    let p = 0, work = 0, stall = 0;
+    const powerAt = 0.5 + Math.random() * 0.35;
     R.bot = setInterval(() => {
       if (!R.active && !R.myDone) return;
       if (R.resolved) { clearInterval(R.bot); return; }
       const t = performance.now() - R.startAt;
-      if (stall > 0) { stall--; return; }
-      if (Math.random() < 0.06) stall = 2 + Math.floor(Math.random() * 4); // "thinking"
-      const target = Math.min(1, t / total);
+      if (R.oppFrozenUntil && performance.now() < R.oppFrozenUntil) return; // frozen by the player
+      work += 350 * (0.85 + Math.random() * 0.3);
+      if (stall > 0) { stall--; work -= 350; return; }
+      if (Math.random() < 0.05) stall = 1 + Math.floor(Math.random() * 3); // "thinking"
+      if (S.match.powerups && !R.oppPowerUsed && p >= powerAt && R.active) {
+        R.oppPowerUsed = true;
+        receiveFreeze();
+      }
+      const target = Math.min(1, work / total);
       p = Math.max(p, Math.min(0.99, target + (Math.random() - 0.5) * 0.05));
       R.prog.guest = p; setBar('guest', p);
-      if (t >= total) {
+      if (work >= total) {
         clearInterval(R.bot);
         R.prog.guest = 1;
         markFinished('guest', t);
@@ -1025,6 +1075,7 @@
     $('btn-final-home').onclick = finalHome;
     $('btn-share-result').onclick = shareResult;
     $('btn-forfeit').onclick = giveUp;
+    $('btn-power').onclick = usePower;
 
     document.querySelectorAll('.seg').forEach(seg => {
       seg.addEventListener('click', e => {
@@ -1059,8 +1110,9 @@
     document.addEventListener('keydown', e => {
       const R = S.round;
       if (!R || !R.active || !R.puzzle || !R.puzzle.onKey) return;
-      if (R.frozenUntil && performance.now() < R.frozenUntil) return;
       if (e.target && e.target.tagName === 'INPUT') return;
+      if (e.key === ' ' && powerupsActive()) { e.preventDefault(); usePower(); return; }
+      if (R.frozenUntil && performance.now() < R.frozenUntil) return;
       R.puzzle.onKey(e);
     });
 

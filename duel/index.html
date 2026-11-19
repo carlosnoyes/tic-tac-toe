@@ -118,6 +118,12 @@
           <button data-v="random">Random</button><button data-v="pick">Loser picks</button>
         </div>
       </div>
+      <div class="setting" id="power-setting">
+        <span class="setting-label">Power-ups</span>
+        <div class="seg" data-setting="powerups">
+          <button data-v="on">❄️ Freeze on</button><button data-v="off">Off</button>
+        </div>
+      </div>
       <div class="setting" id="bot-setting">
         <span class="setting-label">Bot skill</span>
         <div class="seg" data-setting="bot">
@@ -166,7 +172,10 @@
     </div>
     <div class="game-foot">
       <div class="emotes" id="emotes"></div>
-      <button class="btn small" id="btn-forfeit" title="Give up this round">🏳️ Give up</button>
+      <div class="row">
+        <button class="btn small power hidden" id="btn-power" title="Freeze your rival for 3s (Space)" disabled>❄️ at 50%</button>
+        <button class="btn small" id="btn-forfeit" title="Give up this round">🏳️ Give up</button>
+      </div>
     </div>
     <div class="emote-bubble mine" id="my-bubble"></div>
   </section>
