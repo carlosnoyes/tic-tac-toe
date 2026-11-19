@@ -1211,7 +1211,7 @@
     };
 
     const emotes = $('emotes');
-    EMOTES.forEach(e => emotes.appendChild(el('button', { onclick: () => sendEmote(e) }, e)));
+    EMOTES.forEach(e => emotes.appendChild(el('button', { onclick: () => sendEmote(e), 'aria-label': 'Send emote ' + e, title: 'Send ' + e }, e)));
 
     Sound.enabled = store('sound') !== false;
     const st = $('sound-toggle');
