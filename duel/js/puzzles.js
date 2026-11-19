@@ -316,6 +316,322 @@
     },
   });
 
+
+  // ───────────────────────── Mini Sudoku ─────────────────────────
+  register({
+    id: 'sudoku', name: 'Mini Sudoku', icon: '🔷',
+    blurb: 'A bite-size sudoku. Fill every row, column and box.',
+    how: 'Each row, column and box holds every number once. Tap a cell, then a number (or type it).',
+    bot: { easy: 30, normal: 75, hard: 110 },
+    create(root, api) {
+      const n = pick(api.diff, 4, 6, 6);
+      const [br, bc] = n === 4 ? [2, 2] : [2, 3];
+      const keepTarget = pick(api.diff, 7, 16, 12);
+      const box = (r, c) => Math.floor(r / br) * (n / bc) + Math.floor(c / bc);
+      const sol = new Array(n * n).fill(0);
+      const ok = (g, i, v) => {
+        const r = Math.floor(i / n), c = i % n;
+        for (let k = 0; k < n; k++) {
+          if (g[r * n + k] === v || g[k * n + c] === v) return false;
+        }
+        const r0 = Math.floor(r / br) * br, c0 = Math.floor(c / bc) * bc;
+        for (let a = 0; a < br; a++) for (let b = 0; b < bc; b++) if (g[(r0 + a) * n + c0 + b] === v) return false;
+        return true;
+      };
+      const digits = Array.from({ length: n }, (_, i) => i + 1);
+      (function fill(i) {
+        if (i === n * n) return true;
+        for (const v of api.rng.shuffle(digits)) {
+          if (ok(sol, i, v)) { sol[i] = v; if (fill(i + 1)) return true; sol[i] = 0; }
+        }
+        return false;
+      })(0);
+      const countSolutions = (g, limit) => {
+        let cnt = 0;
+        const i = g.indexOf(0);
+        if (i < 0) return 1;
+        for (let v = 1; v <= n && cnt < limit; v++) {
+          if (ok(g, i, v)) { g[i] = v; cnt += countSolutions(g, limit - cnt); g[i] = 0; }
+        }
+        return cnt;
+      };
+      const puzzle = sol.slice();
+      let kept = n * n;
+      for (const i of api.rng.shuffle(Array.from({ length: n * n }, (_, k) => k))) {
+        if (kept <= keepTarget) break;
+        const v = puzzle[i]; puzzle[i] = 0;
+        if (countSolutions(puzzle.slice(), 2) !== 1) puzzle[i] = v; else kept--;
+      }
+      const given = puzzle.map(v => v !== 0);
+      const grid = puzzle.slice();
+      const empties = given.filter(g => !g).length;
+      let sel = given.indexOf(false);
+      const board = el('div', { class: 'grid sudoku-grid sz' + n, style: { gridTemplateColumns: `repeat(${n}, 1fr)` } });
+      const cells = grid.map((v, i) => {
+        const r = Math.floor(i / n), c = i % n;
+        const cls = ['scell'];
+        if (given[i]) cls.push('given');
+        if ((c + 1) % bc === 0 && c < n - 1) cls.push('bR');
+        if ((r + 1) % br === 0 && r < n - 1) cls.push('bB');
+        const d = el('button', { class: cls.join(' ') }, v ? String(v) : '');
+        onPress(d, () => { if (!given[i]) { sel = i; draw(); } });
+        board.appendChild(d); return d;
+      });
+      const pad = el('div', { class: 'numpad' });
+      digits.concat([0]).forEach(v => {
+        const b = el('button', { class: 'nkey' }, v ? String(v) : '⌫');
+        onPress(b, () => input(v));
+        pad.appendChild(b);
+      });
+      function input(v) {
+        if (sel < 0 || given[sel]) return;
+        grid[sel] = v; Sound.click();
+        // auto-advance to next empty cell
+        if (v) {
+          const order = Array.from({ length: n * n }, (_, k) => (sel + 1 + k) % (n * n));
+          const nx = order.find(k => !given[k] && grid[k] === 0);
+          if (nx != null && conflicts(sel) === false) sel = nx;
+        }
+        draw();
+      }
+      function conflicts(i) {
+        const v = grid[i]; if (!v) return false;
+        const g = grid.slice(); g[i] = 0;
+        return !ok(g, i, v);
+      }
+      function draw() {
+        let correct = 0, full = true, anyBad = false;
+        cells.forEach((d, i) => {
+          d.textContent = grid[i] ? String(grid[i]) : '';
+          const bad = !given[i] && conflicts(i);
+          if (bad) anyBad = true;
+          d.classList.toggle('bad', bad);
+          d.classList.toggle('sel', i === sel);
+          const r = Math.floor(i / n), c = i % n, sr = Math.floor(sel / n), sc = sel % n;
+          d.classList.toggle('peer', sel >= 0 && i !== sel && (r === sr || c === sc || box(r, c) === box(sr, sc)));
+          if (!grid[i]) full = false;
+          if (!given[i] && grid[i] === sol[i]) correct++;
+        });
+        api.progress(correct / empties);
+        if (full && !anyBad) api.done();
+      }
+      draw();
+      root.append(board, pad);
+      return {
+        onKey(e) {
+          const k = e.key;
+          if (/^[1-9]$/.test(k) && +k <= n) { input(+k); e.preventDefault(); }
+          else if (k === 'Backspace' || k === 'Delete' || k === '0') { input(0); e.preventDefault(); }
+          else if (k.startsWith('Arrow')) {
+            e.preventDefault();
+            let r = Math.floor(sel / n), c = sel % n;
+            if (k === 'ArrowUp') r = (r + n - 1) % n; if (k === 'ArrowDown') r = (r + 1) % n;
+            if (k === 'ArrowLeft') c = (c + n - 1) % n; if (k === 'ArrowRight') c = (c + 1) % n;
+            sel = r * n + c; draw();
+          }
+        },
+        destroy() {},
+      };
+    },
+  });
+
+  // ───────────────────────── Code Breaker ─────────────────────────
+  const PEGS = ['#ef5350', '#ffca28', '#66bb6a', '#42a5f5', '#ab47bc', '#ff7043', '#26c6da', '#ec407a'];
+  register({
+    id: 'code', name: 'Code Breaker', icon: '🔐',
+    blurb: 'Crack the secret colour code with logic.',
+    how: '● = right colour, right spot. ○ = right colour, wrong spot. Colours can repeat.',
+    bot: { easy: 35, normal: 55, hard: 80 },
+    create(root, api) {
+      const [len, ncol] = pick(api.diff, [4, 5], [4, 6], [5, 7]);
+      const secret = Array.from({ length: len }, () => api.rng.int(ncol));
+      let cur = [], best = 0;
+      const rowsBox = el('div', { class: 'code-rows' });
+      const curRow = el('div', { class: 'code-row current' });
+      const palette = el('div', { class: 'code-palette' });
+      for (let c = 0; c < ncol; c++) {
+        const b = el('button', { class: 'peg big', style: { background: PEGS[c] } });
+        onPress(b, () => { if (cur.length < len) { cur.push(c); Sound.click(); drawCur(); if (cur.length === len) setTimeout(submit, 120); } });
+        palette.appendChild(b);
+      }
+      const back = el('button', { class: 'btn small' }, '⌫ Undo');
+      onPress(back, () => { cur.pop(); drawCur(); });
+      function drawCur() {
+        curRow.innerHTML = '';
+        for (let i = 0; i < len; i++) curRow.appendChild(el('span', { class: 'peg' + (cur[i] == null ? ' empty' : ''), style: cur[i] != null ? { background: PEGS[cur[i]] } : null }));
+      }
+      function score(guess) {
+        let blacks = 0, whites = 0;
+        const sc = new Array(ncol).fill(0), gc = new Array(ncol).fill(0);
+        guess.forEach((g, i) => { if (g === secret[i]) blacks++; else { sc[secret[i]]++; gc[g]++; } });
+        for (let c = 0; c < ncol; c++) whites += Math.min(sc[c], gc[c]);
+        return [blacks, whites];
+      }
+      let guesses = 0;
+      function submit() {
+        if (cur.length !== len) return;
+        const [b, w] = score(cur);
+        guesses++;
+        const row = el('div', { class: 'code-row' },
+          el('span', { class: 'code-n' }, String(guesses)),
+          ...cur.map(c => el('span', { class: 'peg', style: { background: PEGS[c] } })),
+          el('span', { class: 'code-fb' }, '●'.repeat(b) + '○'.repeat(w) || '—'));
+        rowsBox.prepend(row);
+        best = Math.max(best, (b + w * 0.4) / len);
+        cur = []; drawCur();
+        if (b === len) { api.progress(1); api.done(); }
+        else { api.progress(Math.min(0.95, best)); Sound.pop(); }
+      }
+      drawCur();
+      root.append(el('div', { class: 'puzzle-note' }, `${len} pegs · ${ncol} colours`), curRow, palette, back, rowsBox);
+      return {
+        onKey(e) {
+          if (/^[1-9]$/.test(e.key) && +e.key <= ncol && cur.length < len) { cur.push(+e.key - 1); drawCur(); if (cur.length === len) setTimeout(submit, 120); }
+          if (e.key === 'Backspace') { cur.pop(); drawCur(); }
+        },
+        destroy() {},
+      };
+    },
+  });
+
+  // ───────────────────────── Quick Math ─────────────────────────
+  register({
+    id: 'math', name: 'Quick Math', icon: '➗',
+    blurb: 'Ten sums against the clock. Mental arithmetic sprint.',
+    how: 'Type the answer — it submits automatically when correct.',
+    bot: { easy: 22, normal: 35, hard: 55 },
+    create(root, api) {
+      const COUNT = 10;
+      const probs = [];
+      for (let k = 0; k < COUNT; k++) {
+        const ops = pick(api.diff, ['+', '-'], ['+', '-', '×'], ['+', '-', '×', '÷']);
+        const op = api.rng.pick(ops);
+        let a, b, ans;
+        const big = pick(api.diff, 20, 50, 99);
+        if (op === '+') { a = api.rng.range(2, big); b = api.rng.range(2, big); ans = a + b; }
+        else if (op === '-') { a = api.rng.range(5, big); b = api.rng.range(1, a); ans = a - b; }
+        else if (op === '×') { a = api.rng.range(2, pick(api.diff, 9, 12, 15)); b = api.rng.range(2, 12); ans = a * b; }
+        else { b = api.rng.range(2, 12); ans = api.rng.range(2, 12); a = b * ans; }
+        probs.push({ q: `${a} ${op} ${b}`, ans });
+      }
+      let idx = 0, typed = '';
+      const qEl = el('div', { class: 'math-q' });
+      const aEl = el('div', { class: 'math-a' });
+      const dots = el('div', { class: 'math-dots' }, ...probs.map(() => el('span')));
+      const pad = el('div', { class: 'numpad wide' });
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'C'].forEach(k => {
+        const b = el('button', { class: 'nkey' }, k);
+        onPress(b, () => key(k));
+        pad.appendChild(b);
+      });
+      function key(k) {
+        if (idx >= COUNT) return;
+        if (k === '⌫') typed = typed.slice(0, -1);
+        else if (k === 'C') typed = '';
+        else if (typed.length < 4) typed += k;
+        check();
+      }
+      function check() {
+        const p = probs[idx];
+        aEl.textContent = typed || '?';
+        if (+typed === p.ans && typed !== '') {
+          Sound.good(); dots.children[idx].className = 'ok';
+          idx++; typed = '';
+          api.progress(idx / COUNT);
+          if (idx >= COUNT) { api.done(); return; }
+          draw();
+        } else if (typed.length >= String(p.ans).length && typed.length >= 1 && !String(p.ans).startsWith(typed)) {
+          Sound.bad(); shake(aEl); typed = '';
+          setTimeout(() => { aEl.textContent = '?'; }, 200);
+        }
+      }
+      function draw() { qEl.textContent = probs[idx].q + ' ='; aEl.textContent = '?'; dots.children[idx] && (dots.children[idx].className = 'cur'); }
+      draw();
+      root.append(dots, qEl, aEl, pad);
+      return {
+        onKey(e) {
+          if (/^[0-9]$/.test(e.key)) { key(e.key); e.preventDefault(); }
+          else if (e.key === 'Backspace') { key('⌫'); e.preventDefault(); }
+        },
+        destroy() {},
+      };
+    },
+  });
+
+  // ───────────────────────── Nonogram ─────────────────────────
+  register({
+    id: 'nono', name: 'Picross', icon: '🖼️',
+    blurb: 'Paint the hidden picture from the number clues.',
+    how: 'Clues list runs of filled squares in each row/column. Drag to paint; ✕ mode marks blanks.',
+    bot: { easy: 30, normal: 60, hard: 95 },
+    create(root, api) {
+      const n = pick(api.diff, 5, 6, 8);
+      let sol;
+      const runs = line => { const out = []; let k = 0; line.forEach(v => { if (v) k++; else if (k) { out.push(k); k = 0; } }); if (k) out.push(k); return out.length ? out : [0]; };
+      do { sol = Array.from({ length: n * n }, () => api.rng.chance(0.58)); }
+      while (sol.filter(Boolean).length < n * n * 0.45);
+      const row = (g, r) => g.slice(r * n, r * n + n);
+      const col = (g, c) => Array.from({ length: n }, (_, r) => g[r * n + c]);
+      const rowClues = Array.from({ length: n }, (_, r) => runs(row(sol, r)));
+      const colClues = Array.from({ length: n }, (_, c) => runs(col(sol, c)));
+      const st = new Array(n * n).fill(0); // 0 empty, 1 filled, 2 marked
+      let mode = 1, painting = null;
+      const table = el('div', { class: 'nono', style: { gridTemplateColumns: `auto repeat(${n}, 1fr)` } });
+      table.appendChild(el('div'));
+      const colEls = colClues.map(cl => { const d = el('div', { class: 'nclue col' }, ...cl.map(v => el('span', null, String(v)))); table.appendChild(d); return d; });
+      const rowEls = [], cells = [];
+      for (let r = 0; r < n; r++) {
+        const rc = el('div', { class: 'nclue row' }, rowClues[r].join(' '));
+        rowEls.push(rc); table.appendChild(rc);
+        for (let c = 0; c < n; c++) {
+          const i = r * n + c;
+          const d = el('div', { class: 'ncell' + ((c + 1) % 5 === 0 && c < n - 1 ? ' bR' : '') + ((r + 1) % 5 === 0 && r < n - 1 ? ' bB' : '') });
+          d.dataset.i = i;
+          cells.push(d); table.appendChild(d);
+        }
+      }
+      table.addEventListener('pointerdown', e => {
+        const d = e.target.closest('.ncell'); if (!d) return;
+        e.preventDefault();
+        const i = +d.dataset.i;
+        const m = e.button === 2 ? 2 : mode;
+        painting = st[i] === m ? 0 : m;
+        set(i);
+      });
+      table.addEventListener('pointermove', e => {
+        if (painting == null) return;
+        const t = document.elementFromPoint(e.clientX, e.clientY);
+        const d = t && t.closest && t.closest('.ncell');
+        if (d && table.contains(d)) set(+d.dataset.i);
+      });
+      const stop = () => { if (painting != null) { painting = null; check(); } };
+      window.addEventListener('pointerup', stop);
+      table.addEventListener('contextmenu', e => e.preventDefault());
+      function set(i) {
+        if (st[i] === painting) return;
+        st[i] = painting; Sound.click();
+        cells[i].className = cells[i].className.replace(/ (fill|mark)/g, '') + (painting === 1 ? ' fill' : painting === 2 ? ' mark' : '');
+        check();
+      }
+      const same = (a, b) => a.length === b.length && a.every((v, k) => v === b[k]);
+      function check() {
+        const g = st.map(v => v === 1);
+        let good = 0;
+        for (let r = 0; r < n; r++) { const ok = same(runs(row(g, r)), rowClues[r]); rowEls[r].classList.toggle('ok', ok); if (ok) good++; }
+        for (let c = 0; c < n; c++) { const ok = same(runs(col(g, c)), colClues[c]); colEls[c].classList.toggle('ok', ok); if (ok) good++; }
+        api.progress(good / (2 * n) * 0.999);
+        if (good === 2 * n) { api.progress(1); api.done(); }
+      }
+      const fillBtn = el('button', { class: 'btn small active' }, '⬛ Fill');
+      const markBtn = el('button', { class: 'btn small' }, '✕ Mark');
+      fillBtn.onclick = () => { mode = 1; fillBtn.classList.add('active'); markBtn.classList.remove('active'); };
+      markBtn.onclick = () => { mode = 2; markBtn.classList.add('active'); fillBtn.classList.remove('active'); };
+      check();
+      root.append(el('div', { class: 'puzzle-toolbar' }, fillBtn, markBtn), table);
+      return { destroy() { window.removeEventListener('pointerup', stop); }, onKey(e) { if (e.key === 'x' || e.key === 'X') (mode === 1 ? markBtn : fillBtn).click(); } };
+    },
+  });
+
   window.PD = window.PD || {};
   PD.Puzzles = { list: registry, byId, register, pick, onPress };
 })();
