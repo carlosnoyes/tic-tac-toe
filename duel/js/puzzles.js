@@ -632,6 +632,131 @@
     },
   });
 
+  // ───────────────────────── Pipes ─────────────────────────
+  // Bitmask per tile: 1=up 2=right 4=down 8=left
+  register({
+    id: 'pipes', name: 'Pipes', icon: '🚰',
+    blurb: 'Rotate tiles until the whole network connects.',
+    how: 'Tap a tile to rotate it. Connect every pipe with no loose ends — the water flows from the glowing source.',
+    bot: { easy: 25, normal: 50, hard: 85 },
+    create(root, api) {
+      const n = pick(api.diff, 4, 5, 6);
+      const N = n * n;
+      const DIRS = [[-1, 0, 1, 4], [0, 1, 2, 8], [1, 0, 4, 1], [0, -1, 8, 2]]; // dr, dc, bit, opposite
+      const mask = new Array(N).fill(0);
+      // random spanning tree (randomised DFS / growing tree)
+      const seen = new Array(N).fill(false);
+      const start = api.rng.int(N);
+      const stack = [start]; seen[start] = true;
+      while (stack.length) {
+        const i = api.rng.chance(0.7) ? stack[stack.length - 1] : stack[api.rng.int(stack.length)];
+        const r = Math.floor(i / n), c = i % n;
+        const opts = DIRS.filter(([dr, dc]) => { const rr = r + dr, cc = c + dc; return rr >= 0 && rr < n && cc >= 0 && cc < n && !seen[rr * n + cc]; });
+        if (!opts.length) { stack.splice(stack.indexOf(i), 1); continue; }
+        const [dr, dc, bit, opp] = api.rng.pick(opts);
+        const j = (r + dr) * n + c + dc;
+        mask[i] |= bit; mask[j] |= opp; seen[j] = true; stack.push(j);
+      }
+      const rot = m => ((m << 1) | (m >> 3)) & 15;
+      const cur = mask.map(m => { let x = m; const k = api.rng.int(4); for (let t = 0; t < k; t++) x = rot(x); return x; });
+      // make sure it's not already solved
+      if (cur.every((m, i) => m === mask[i])) cur[0] = rot(cur[0]) === mask[0] ? rot(rot(cur[0])) : rot(cur[0]);
+      const src = start;
+      const grid = el('div', { class: 'grid pipes-grid', style: { gridTemplateColumns: `repeat(${n}, 1fr)` } });
+      const rotations = cur.map(() => 0);
+      const cells = cur.map((m, i) => {
+        const d = el('button', { class: 'pipe' + (i === src ? ' src' : '') });
+        d.innerHTML = pipeSvg(mask[i]);
+        // rotation of the drawn solution shape so it shows cur[i]
+        let k = 0, x = mask[i]; while (x !== m && k < 4) { x = rot(x); k++; }
+        rotations[i] = k;
+        d.firstChild.style.transform = `rotate(${k * 90}deg)`;
+        onPress(d, () => { cur[i] = rot(cur[i]); rotations[i]++; d.firstChild.style.transform = `rotate(${rotations[i] * 90}deg)`; Sound.click(); check(); });
+        grid.appendChild(d); return d;
+      });
+      function pipeSvg(m) {
+        let p = '<svg viewBox="0 0 100 100"><g stroke-linecap="round">';
+        const seg = { 1: 'M50 50 L50 0', 2: 'M50 50 L100 50', 4: 'M50 50 L50 100', 8: 'M50 50 L0 50' };
+        let d = '';
+        [1, 2, 4, 8].forEach(b => { if (m & b) d += seg[b] + ' '; });
+        p += `<path d="${d}" stroke-width="22" class="pipe-bg"/><path d="${d}" stroke-width="12" class="pipe-fg"/>`;
+        if ([1, 2, 4, 8].includes(m)) p += '<circle cx="50" cy="50" r="17" class="pipe-end"/>';
+        else p += '<circle cx="50" cy="50" r="11" class="pipe-fg-c"/>';
+        return p + '</g></svg>';
+      }
+      function check() {
+        // flood from source through matching connections
+        const wet = new Array(N).fill(false);
+        const q = [src]; wet[src] = true;
+        while (q.length) {
+          const i = q.pop(); const r = Math.floor(i / n), c = i % n;
+          DIRS.forEach(([dr, dc, bit, opp]) => {
+            if (!(cur[i] & bit)) return;
+            const rr = r + dr, cc = c + dc; if (rr < 0 || rr >= n || cc < 0 || cc >= n) return;
+            const j = rr * n + cc;
+            if (!wet[j] && (cur[j] & opp)) { wet[j] = true; q.push(j); }
+          });
+        }
+        let wetCount = 0, leaks = 0;
+        cells.forEach((d, i) => { d.classList.toggle('wet', wet[i]); if (wet[i]) wetCount++; });
+        for (let i = 0; i < N; i++) {
+          const r = Math.floor(i / n), c = i % n;
+          DIRS.forEach(([dr, dc, bit, opp]) => {
+            if (!(cur[i] & bit)) return;
+            const rr = r + dr, cc = c + dc;
+            if (rr < 0 || rr >= n || cc < 0 || cc >= n || !(cur[rr * n + cc] & opp)) leaks++;
+          });
+        }
+        api.progress(Math.min(0.99, wetCount / N));
+        if (wetCount === N && leaks === 0) { api.progress(1); api.done(); }
+      }
+      check();
+      root.append(grid);
+      return { destroy() {} };
+    },
+  });
+
+  // ───────────────────────── Odd One Out ─────────────────────────
+  const ODD_SETS = [['😀', '😃'], ['🐶', '🐱'], ['🍏', '🍎'], ['🌑', '🌚'], ['⭐', '🌟'], ['🔵', '🟣'], ['😐', '😑'], ['🕐', '🕑'], ['🐻', '🐼'], ['🌕', '🌝'], ['💙', '💜'], ['🍊', '🍑'], ['🐟', '🐠'], ['🚗', '🚙'], ['☁️', '🌥️'], ['🙂', '🙃'], ['🔶', '🔸'], ['🦆', '🐤'], ['🍪', '🥠'], ['🎃', '🍊']];
+  register({
+    id: 'odd', name: 'Odd One Out', icon: '👀',
+    blurb: 'Spot the one emoji that doesn’t belong. Ten rapid levels.',
+    how: 'Tap the single item that is different. Grids get bigger every level. Misses cost a freeze.',
+    bot: { easy: 18, normal: 26, hard: 38 },
+    create(root, api) {
+      const LEVELS = 10;
+      const sizes = pick(api.diff, [3, 3, 4, 4, 4, 5, 5, 5, 6, 6], [4, 4, 5, 5, 6, 6, 6, 7, 7, 7], [5, 5, 6, 6, 7, 7, 8, 8, 8, 8]);
+      const levels = sizes.map(sz => {
+        const [a, b] = api.rng.chance(0.5) ? api.rng.pick(ODD_SETS) : api.rng.pick(ODD_SETS).slice().reverse();
+        return { sz, base: a, odd: b, at: api.rng.int(sz * sz) };
+      });
+      let lv = 0;
+      const lvEl = el('div', { class: 'puzzle-note' });
+      const grid = el('div', { class: 'grid odd-grid' });
+      function draw() {
+        const L = levels[lv];
+        lvEl.textContent = `Level ${lv + 1} / ${LEVELS}`;
+        grid.style.gridTemplateColumns = `repeat(${L.sz}, 1fr)`;
+        grid.innerHTML = '';
+        for (let i = 0; i < L.sz * L.sz; i++) {
+          const d = el('button', { class: 'odd-cell', style: { fontSize: `${Math.max(0.9, 2.6 - L.sz * 0.22)}rem` } }, i === L.at ? L.odd : L.base);
+          onPress(d, () => {
+            if (i === L.at) {
+              Sound.good(); lv++;
+              api.progress(lv / LEVELS);
+              if (lv >= LEVELS) { api.done(); return; }
+              draw();
+            } else { Sound.bad(); shake(grid); api.penalty(1500, 'Not that one!'); }
+          });
+          grid.appendChild(d);
+        }
+      }
+      draw();
+      root.append(lvEl, grid);
+      return { destroy() {} };
+    },
+  });
+
   window.PD = window.PD || {};
   PD.Puzzles = { list: registry, byId, register, pick, onPress };
 })();

@@ -283,6 +283,24 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .ncell.fill { background: linear-gradient(145deg, var(--me), #1e88c8); border-color: var(--me); }
 .ncell.mark::after { content: '✕'; color: var(--dimmer); font-weight: 900; }
 
+/* Pipes */
+.pipes-grid { gap: 3px; width: min(100%, 400px); }
+.pipe { aspect-ratio: 1; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); cursor: pointer; overflow: hidden; }
+.pipe svg { width: 100%; height: 100%; display: block; transition: transform 0.12s ease-out; }
+.pipe .pipe-bg { stroke: #2b2b55; fill: none; }
+.pipe .pipe-fg { stroke: #5a5a99; fill: none; transition: stroke 0.2s; }
+.pipe .pipe-fg-c, .pipe .pipe-end { fill: #5a5a99; transition: fill 0.2s; }
+.pipe.wet .pipe-fg { stroke: var(--me); }
+.pipe.wet .pipe-fg-c, .pipe.wet .pipe-end { fill: var(--me); }
+.pipe.wet { background: #0f1e33; }
+.pipe.src { box-shadow: inset 0 0 0 2px var(--gold); }
+.pipe.src .pipe-end, .pipe.src .pipe-fg-c { fill: var(--gold) !important; }
+
+/* Odd one out */
+.odd-grid { width: min(100%, 420px); gap: 4px; }
+.odd-cell { aspect-ratio: 1; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.odd-cell:hover { border-color: var(--border2); }
+
 /* ── overlays ── */
 .overlay { position: fixed; inset: 0; background: rgba(5,5,18,0.78); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; animation: fade-in 0.2s; }
 .cd-card, .res-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px 32px; text-align: center; max-width: 420px; width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
