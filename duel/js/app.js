@@ -1179,6 +1179,8 @@
     window.addEventListener('beforeunload', () => { if (S.net) try { S.net.send({ t: 'bye' }); } catch (e) {} });
 
     $('btn-daily').onclick = () => { Sound.click(); startDaily(null); };
+    if (!store('seenHowto')) $('howto').classList.remove('hidden');
+    $('howto-close').onclick = () => { $('howto').classList.add('hidden'); store('seenHowto', true); };
     renderHome();
     // challenge link: #c=...   invite link: #CODE
     if (location.hash.startsWith('#c=')) {

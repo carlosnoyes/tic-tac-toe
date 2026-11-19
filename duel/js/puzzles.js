@@ -224,7 +224,7 @@
   register({
     id: 'mines', name: 'Mine Dash', icon: '💣',
     blurb: 'Minesweeper race. Hitting a mine freezes you for 4 seconds.',
-    how: 'Tap to reveal, long-press / right-click (or use 🚩 mode) to flag. Clear every safe square.',
+    how: 'Tap to reveal, long-press / right-click (or 🚩 mode) to flag. Tap a number whose flags are all set to clear around it.',
     bot: { easy: 35, normal: 60, hard: 100 },
     create(root, api) {
       const [w, h, m] = pick(api.diff, [8, 8, 9], [9, 9, 13], [11, 11, 22]);
@@ -281,7 +281,9 @@
         info.textContent = `${m - flagged.filter(Boolean).length} mines left`;
       }
       function reveal(i, user) {
-        if (revealed[i] || flagged[i] || finished) return;
+        if (finished) return;
+        if (revealed[i] && user) { chord(i); return; }
+        if (revealed[i] || flagged[i]) return;
         if (user && revealed[i] === false && mine[i]) {
           Sound.boom(); shake(grid);
           cells[i].classList.add('boom'); cells[i].textContent = '💥';
@@ -301,6 +303,13 @@
         if (user) Sound.click();
         api.progress(safeRevealed / safeTotal);
         if (safeRevealed === safeTotal) { finished = true; api.done(); }
+      }
+      // chording: tapping a revealed number whose flags are all placed opens the rest of its neighbours
+      function chord(i) {
+        if (!count[i]) return;
+        const ns = nb(i);
+        if (ns.filter(j => flagged[j]).length !== count[i]) return;
+        ns.forEach(j => { if (!revealed[j] && !flagged[j]) reveal(j, true); });
       }
       function draw(i) {
         const c = cells[i];
@@ -437,6 +446,7 @@
 
   // ───────────────────────── Code Breaker ─────────────────────────
   const PEGS = ['#ef5350', '#ffca28', '#66bb6a', '#42a5f5', '#ab47bc', '#ff7043', '#26c6da', '#ec407a'];
+  const PEG_SYM = ['●', '▲', '■', '◆', '★', '✚', '⬢', '♥']; // colour-blind friendly markers
   register({
     id: 'code', name: 'Code Breaker', icon: '🔐',
     blurb: 'Crack the secret colour code with logic.',
@@ -450,7 +460,7 @@
       const curRow = el('div', { class: 'code-row current' });
       const palette = el('div', { class: 'code-palette' });
       for (let c = 0; c < ncol; c++) {
-        const b = el('button', { class: 'peg big', style: { background: PEGS[c] } });
+        const b = el('button', { class: 'peg big', style: { background: PEGS[c] }, 'aria-label': 'colour ' + (c + 1) }, PEG_SYM[c]);
         onPress(b, () => { if (cur.length < len) { cur.push(c); Sound.click(); drawCur(); if (cur.length === len) setTimeout(submit, 120); } });
         palette.appendChild(b);
       }
@@ -458,7 +468,7 @@
       onPress(back, () => { cur.pop(); drawCur(); });
       function drawCur() {
         curRow.innerHTML = '';
-        for (let i = 0; i < len; i++) curRow.appendChild(el('span', { class: 'peg' + (cur[i] == null ? ' empty' : ''), style: cur[i] != null ? { background: PEGS[cur[i]] } : null }));
+        for (let i = 0; i < len; i++) curRow.appendChild(el('span', { class: 'peg' + (cur[i] == null ? ' empty' : ''), style: cur[i] != null ? { background: PEGS[cur[i]] } : null }, cur[i] != null ? PEG_SYM[cur[i]] : ''));
       }
       function score(guess) {
         let blacks = 0, whites = 0;
@@ -474,7 +484,7 @@
         guesses++;
         const row = el('div', { class: 'code-row' },
           el('span', { class: 'code-n' }, String(guesses)),
-          ...cur.map(c => el('span', { class: 'peg', style: { background: PEGS[c] } })),
+          ...cur.map(c => el('span', { class: 'peg', style: { background: PEGS[c] } }, PEG_SYM[c])),
           el('span', { class: 'code-fb' }, '●'.repeat(b) + '○'.repeat(w) || '—'));
         rowsBox.prepend(row);
         best = Math.max(best, (b + w * 0.4) / len);

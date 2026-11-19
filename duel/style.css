@@ -110,6 +110,9 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .stat-v { font-size: 1.5rem; font-weight: 800; }
 .stat-l { font-size: 0.7rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; }
 
+.howto ol { margin: 0 0 0 20px; display: flex; flex-direction: column; gap: 6px; color: var(--text); }
+.howto li::marker { color: var(--gold); font-weight: 800; }
+.howto .row { justify-content: flex-end; margin-top: 10px; }
 .foot { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 
 /* ── lobby ── */
@@ -271,9 +274,9 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .code-rows { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; padding: 4px; }
 .code-n { width: 20px; color: var(--dimmer); font-size: 0.8rem; text-align: right; }
 .code-fb { min-width: 70px; color: var(--gold); letter-spacing: 2px; font-size: 0.95rem; }
-.peg { width: 28px; height: 28px; border-radius: 50%; display: inline-block; border: 2px solid rgba(255,255,255,0.15); box-shadow: inset -3px -3px 6px rgba(0,0,0,0.3); }
+.peg { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; color: rgba(0,0,0,0.45); padding: 0; border: 2px solid rgba(255,255,255,0.15); box-shadow: inset -3px -3px 6px rgba(0,0,0,0.3); }
 .peg.empty { background: var(--bg2); border-style: dashed; border-color: var(--border2); box-shadow: none; }
-.peg.big { width: 44px; height: 44px; cursor: pointer; transition: transform 0.08s; }
+.peg.big { font-size: 1.1rem; width: 44px; height: 44px; cursor: pointer; transition: transform 0.08s; }
 .peg.big:active { transform: scale(0.9); }
 .code-palette { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
