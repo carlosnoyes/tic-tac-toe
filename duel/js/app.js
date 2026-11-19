@@ -20,7 +20,7 @@
     code: null,
     oppName: null,
     connected: false,
-    settings: Object.assign({ rounds: 5, diff: 'normal', bot: 'pro', pool: P.list.map(p => p.id) }, store('settings') || {}),
+    settings: Object.assign({ rounds: 5, diff: 'normal', bot: 'pro', order: 'random', pool: P.list.map(p => p.id) }, store('settings') || {}),
     match: null,
     round: null,
     rematch: { host: false, guest: false },
@@ -36,6 +36,7 @@
   const sideOf = role => (role === myRole() ? 'me' : 'opp');
   const nameOf = role => {
     if (S.mode === 'local') return role === 'host' ? myName() : S.local.p2;
+    if (S.mode === 'bot') return role === 'host' ? myName() : BOT_NAMES[S.settings.bot];
     return role === myRole() ? myName() : (S.oppName || 'Rival');
   };
   const myName = () => ($('name-input').value.trim() || 'Player');
@@ -81,7 +82,8 @@
     teardownNet();
     endRoundUI();
     S.mode = null; S.match = null; S.round = null;
-    overlay('result', false); overlay('countdown', false); overlay('handoff', false);
+    overlay('result', false); overlay('countdown', false); overlay('handoff', false); overlay('pick', false);
+    clearInterval(pickTimer); S.pickFor = null;
     history.replaceState(null, '', location.pathname + location.search);
     renderHome();
     show('home');
@@ -225,7 +227,8 @@
   function abortMatch() {
     endRoundUI();
     S.match = null; S.round = null;
-    overlay('result', false); overlay('countdown', false);
+    overlay('result', false); overlay('countdown', false); overlay('pick', false);
+    clearInterval(pickTimer); S.pickFor = null;
   }
 
   function onMessage(m) {
@@ -287,6 +290,14 @@
         if (S.mode !== 'guest') return;
         showResult(m);
         break;
+      case 'pickreq':
+        if (S.mode !== 'guest') return;
+        showPick(m.picker);
+        break;
+      case 'picked':
+        if (S.mode === 'guest') { markPicked(m.pid); return; }
+        if (S.pickFor === 'guest') { S.pickFor = null; markPicked(m.pid); send({ t: 'picked', pid: m.pid }); setTimeout(() => hostNextRound(m.pid), 700); }
+        break;
       case 'emote':
         showEmote('opp', m.e);
         break;
@@ -312,6 +323,7 @@
       rounds: +S.settings.rounds,
       diff: S.settings.diff,
       pool: S.settings.pool.slice(),
+      order: S.settings.order || 'random',
     };
     send({ t: 'match', match });
     beginMatch(match);
@@ -325,12 +337,13 @@
     return order[i % match.pool.length];
   }
 
-  function hostNextRound() {
+  function hostNextRound(pidOverride) {
     const M = S.match; if (!M) return;
+    overlay('pick', false); clearInterval(pickTimer);
     const i = M.history.length;
     const msg = {
       t: 'round', i,
-      pid: puzzleForRound(M, i),
+      pid: (pidOverride && P.byId[pidOverride] && M.pool.includes(pidOverride)) ? pidOverride : puzzleForRound(M, i),
       seed: (M.seed ^ Math.imul(i + 1, 0x9E3779B1)) >>> 0,
       diff: M.diff,
       limit: TIME_LIMIT[M.diff] || 150,
@@ -417,7 +430,7 @@
 
   function beginRound(msg) {
     endRoundUI();
-    overlay('result', false);
+    overlay('result', false); overlay('pick', false); clearInterval(pickTimer); S.pickFor = null;
     const pz = P.byId[msg.pid];
     const R = S.round = {
       i: msg.i, pid: msg.pid, seed: msg.seed, diff: msg.diff, limit: msg.limit,
@@ -630,7 +643,11 @@
     if (m.over) {
       setTimeout(() => { overlay('result', false); showFinal(m.matchWinner); }, 2600);
     } else if (isAuthority()) {
-      setTimeout(() => { if (S.match) hostNextRound(); }, 3200);
+      const M2 = S.match;
+      if (M2 && M2.order === 'pick' && m.winner && M2.pool.length > 1) {
+        const picker = m.winner === 'host' ? 'guest' : 'host';
+        setTimeout(() => { if (S.match === M2) { send({ t: 'pickreq', picker, i: M2.history.length }); showPick(picker); } }, 2600);
+      } else setTimeout(() => { if (S.match === M2) hostNextRound(); }, 3200);
     }
   }
 
@@ -684,6 +701,82 @@
       if (S.mode === 'host') send({ t: 'lobby' });
       abortMatch(); openLobby();
     } else goHome();
+  }
+
+  // ─────────────── loser picks ───────────────
+  let pickTimer = null;
+  function showPick(picker) {
+    overlay('result', false);
+    const M = S.match; if (!M) return;
+    const interactive = S.mode === 'local' || picker === myRole();
+    S.pickFor = picker;
+    $('pick-title').textContent = interactive ? (S.mode === 'local' ? `${nameOf(picker)}, pick the next puzzle` : 'You lost the round — pick the next puzzle!') : `${nameOf(picker)} is choosing the next puzzle…`;
+    $('pick-sub').textContent = interactive ? 'Choose the one you’re best at.' : 'They lost the last round, so they get to choose.';
+    const grid = $('pick-grid'); grid.innerHTML = '';
+    grid.classList.toggle('readonly', !interactive);
+    const best = (store('stats') || {}).best || {};
+    M.pool.forEach(id => {
+      const pz = P.byId[id];
+      const b = best[id + ':' + M.diff];
+      const btn = el('button', { class: 'pick-btn', 'data-pid': id }, el('span', { class: 'pi' }, pz.icon), el('span', null, pz.name), b && interactive ? el('span', { class: 'pb' }, 'best ' + fmtTime(b)) : null);
+      btn.onclick = () => choosePick(id);
+      grid.appendChild(btn);
+    });
+    overlay('pick', true);
+    let left = 15;
+    $('pick-timer').textContent = `${left}s`;
+    clearInterval(pickTimer);
+    pickTimer = setInterval(() => {
+      left--;
+      $('pick-timer').textContent = `${Math.max(0, left)}s`;
+      if (left <= 0) { clearInterval(pickTimer); if (isAuthority() && S.pickFor) choosePick(M.pool[Math.floor(Math.random() * M.pool.length)], true); }
+    }, 1000);
+    if (S.mode === 'bot' && picker === 'guest') {
+      // bot picks the puzzle it is (secretly) fastest at relative to its average
+      const pz = M.pool.slice().sort((a, b) => P.byId[a].bot[M.diff] - P.byId[b].bot[M.diff])[Math.random() < 0.6 ? 0 : 1] || M.pool[0];
+      setTimeout(() => choosePick(pz, true), 1400);
+    }
+  }
+
+  function choosePick(pid, force) {
+    const picker = S.pickFor;
+    if (!picker) return;
+    const interactive = S.mode === 'local' || picker === myRole();
+    if (!interactive && !force) return;
+    Sound.click();
+    if (S.mode === 'guest') { S.pickFor = null; send({ t: 'picked', pid }); markPicked(pid); return; }
+    S.pickFor = null;
+    markPicked(pid);
+    send({ t: 'picked', pid });
+    setTimeout(() => hostNextRound(pid), 700);
+  }
+
+  function markPicked(pid) {
+    clearInterval(pickTimer);
+    const b = document.querySelector(`.pick-btn[data-pid="${pid}"]`);
+    if (b) b.classList.add('chosen');
+    $('pick-timer').textContent = P.byId[pid] ? `${P.byId[pid].icon} ${P.byId[pid].name} it is!` : '';
+  }
+
+  function resultText() {
+    const M = S.match; if (!M) return '';
+    const left = S.mode === 'guest' ? 'guest' : 'host', right = left === 'host' ? 'guest' : 'host';
+    const lines = [`⚔️ Puzzle Duel — ${nameOf(left)} ${M.scores[left]}–${M.scores[right]} ${nameOf(right)}`];
+    M.history.forEach(h => {
+      const pz = P.byId[h.pid];
+      const t = r => h.times[r] != null ? fmtTime(h.times[r]) : Math.round((h.prog[r] || 0) * 100) + '%';
+      const mark = h.winner === left ? '🟦' : h.winner === right ? '🟥' : '⬜';
+      lines.push(`${mark} ${pz.icon} ${pz.name}: ${t(left)} vs ${t(right)}`);
+    });
+    lines.push(location.origin + location.pathname);
+    return lines.join('\n');
+  }
+
+  async function shareResult() {
+    const text = resultText();
+    if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) { try { await navigator.share({ text }); return; } catch (e) {} }
+    try { await navigator.clipboard.writeText(text); toast('Result copied — paste it anywhere!'); }
+    catch (e) { prompt('Copy your result:', text); }
   }
 
   // ─────────────── bot ───────────────
@@ -807,6 +900,7 @@
     $('btn-start').onclick = () => { Sound.click(); hostStartMatch(); };
     $('btn-rematch').onclick = rematch;
     $('btn-final-home').onclick = finalHome;
+    $('btn-share-result').onclick = shareResult;
     $('btn-forfeit').onclick = giveUp;
 
     document.querySelectorAll('.seg').forEach(seg => {

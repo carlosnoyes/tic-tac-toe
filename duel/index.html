@@ -105,6 +105,12 @@
           <button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button>
         </div>
       </div>
+      <div class="setting">
+        <span class="setting-label">Next puzzle</span>
+        <div class="seg" data-setting="order">
+          <button data-v="random">Random</button><button data-v="pick">Loser picks</button>
+        </div>
+      </div>
       <div class="setting" id="bot-setting">
         <span class="setting-label">Bot skill</span>
         <div class="seg" data-setting="bot">
@@ -166,6 +172,7 @@
       <table class="history" id="final-history"></table>
       <div class="row center">
         <button class="btn primary big" id="btn-rematch">🔁 Rematch</button>
+        <button class="btn big" id="btn-share-result">📋 Share result</button>
         <button class="btn big" id="btn-final-home">Home</button>
       </div>
       <div class="muted small" id="rematch-hint"></div>
@@ -188,6 +195,14 @@
       <div class="res-times" id="res-times"></div>
       <div class="res-score" id="res-score"></div>
       <div class="res-next muted small" id="res-next"></div>
+    </div>
+  </div>
+  <div class="overlay hidden" id="pick">
+    <div class="res-card wide">
+      <div class="res-title" id="pick-title">Choose the next puzzle</div>
+      <div class="muted small" id="pick-sub"></div>
+      <div class="pick-grid" id="pick-grid"></div>
+      <div class="pick-timer" id="pick-timer"></div>
     </div>
   </div>
   <div class="overlay hidden" id="handoff">
