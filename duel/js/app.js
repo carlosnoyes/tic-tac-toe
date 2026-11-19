@@ -485,7 +485,16 @@
 
   function setBar(role, p) {
     const side = sideOf(role);
-    $('hud-' + side + '-bar').style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%';
+    const pct = Math.round(Math.max(0, Math.min(1, p)) * 100);
+    $('hud-' + side + '-bar').style.width = pct + '%';
+    $('hud-' + side + '-pct').textContent = pct ? pct + '%' : '';
+    // warn once when the rival is nearly done
+    const R = S.round;
+    const hud = $('hud-' + side + '-bar').closest('.hud-player');
+    if (side === 'opp' && R && R.active && pct >= 80 && pct < 100 && !R.warned) {
+      R.warned = true; hud.classList.add('close'); Sound.tone(740, 0.12, 'square', 0.04); Sound.tone(740, 0.12, 'square', 0.04, 0.16);
+    }
+    if (pct === 0) hud.classList.remove('close');
   }
 
   function markFinished(role, ms) {

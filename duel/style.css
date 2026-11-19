@@ -165,6 +165,10 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .hud-player.opp .pbar { transform: scaleX(-1); }
 .hud-player.opp .pbar-fill { background: linear-gradient(90deg, #c2185b, var(--opp)); }
 .hud-player.finished .pbar-fill { background: var(--gold); }
+.pct { font-size: 0.68rem; color: var(--dim); margin-top: 2px; min-height: 0.9em; font-variant-numeric: tabular-nums; }
+.hud-player.opp .pct { text-align: right; }
+.hud-player.close:not(.finished) .pbar { animation: danger 0.6s ease-in-out infinite alternate; }
+@keyframes danger { from { box-shadow: 0 0 0 transparent; } to { box-shadow: 0 0 12px var(--opp); } }
 .hud-mid { text-align: center; }
 .hud-round { font-size: 0.72rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
 .hud-timer { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 80px; }
