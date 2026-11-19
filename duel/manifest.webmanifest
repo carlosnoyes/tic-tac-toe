@@ -1,0 +1,11 @@
+{
+  "name": "Puzzle Duel",
+  "short_name": "Puzzle Duel",
+  "description": "Race a friend through head-to-head puzzles.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#08081a",
+  "theme_color": "#08081a",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

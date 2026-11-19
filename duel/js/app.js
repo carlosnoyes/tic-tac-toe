@@ -131,7 +131,7 @@
     if (S.mode === 'bot') {
       card.classList.add('joined');
       nameEl.textContent = BOT_NAMES[S.settings.bot];
-      $('lobby-opp-role').textContent = 'Bot';
+      $('lobby-opp-role').textContent = 'Bot' + (h2hText() ? ' · ' + h2hText() : '');
     } else if (S.mode === 'local') {
       card.classList.add('joined');
       const inp = el('input', { value: S.local.p2, maxlength: 16, style: { textAlign: 'center', width: '100%' } });
@@ -141,7 +141,7 @@
     } else {
       card.classList.toggle('joined', S.connected);
       nameEl.textContent = S.connected ? (S.oppName || 'Rival') : 'Waiting…';
-      $('lobby-opp-role').textContent = S.connected ? (S.mode === 'host' ? 'Guest' : 'Host') : '';
+      $('lobby-opp-role').textContent = S.connected ? (S.mode === 'host' ? 'Guest' : 'Host') + (h2hText() ? ' · ' + h2hText() : '') : '';
     }
   }
 
@@ -173,6 +173,14 @@
     renderOppCard();
     if (S.mode === 'host') send({ t: 'settings', settings: S.settings });
     if (!S.mode) renderHome();
+  }
+
+  function rivalKey() {
+    return S.mode === 'bot' ? 'bot:' + S.settings.bot : 'p:' + (S.oppName || 'Rival').toLowerCase();
+  }
+  function h2hText() {
+    const rec = ((store('stats') || {}).h2h || {})[rivalKey()];
+    return rec ? `Your record: ${rec.w}W – ${rec.l}L` + (rec.d ? ` – ${rec.d}D` : '') : '';
   }
 
   function updateStartButton() {
@@ -757,7 +765,14 @@
       st.played = (st.played || 0) + 1;
       if (winner === me) st.won = (st.won || 0) + 1;
       st.rounds = (st.rounds || 0) + M.scores[me];
+      // head-to-head record per rival
+      const rk = rivalKey();
+      st.h2h = st.h2h || {};
+      const rec = st.h2h[rk] = st.h2h[rk] || { w: 0, l: 0, d: 0, name: nameOf(oppRole()) };
+      if (!winner) rec.d++; else if (winner === me) rec.w++; else rec.l++;
+      rec.name = nameOf(oppRole());
       store('stats', st);
+      $('rematch-hint').textContent = `All-time vs ${rec.name}: ${rec.w}W – ${rec.l}L` + (rec.d ? ` – ${rec.d}D` : '');
     }
     show('final');
   }
