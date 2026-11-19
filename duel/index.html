@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#08081a">
+<meta name="description" content="Puzzle Duel — race a friend through head-to-head puzzles in your browser. Share a link, no sign-up.">
+<title>Puzzle Duel</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ═════════ HOME ═════════ -->
+  <section class="screen" id="screen-home">
+    <header class="hero">
+      <div class="logo">⚔️</div>
+      <h1>Puzzle Duel</h1>
+      <p class="tagline">Race a friend through rapid-fire puzzles. Same puzzle, same time — fastest brain wins.</p>
+    </header>
+
+    <div class="panel name-panel">
+      <label for="name-input">Your name</label>
+      <div class="row">
+        <input id="name-input" maxlength="16" autocomplete="off" spellcheck="false">
+        <button class="btn icon" id="name-dice" title="Random name">🎲</button>
+      </div>
+    </div>
+
+    <div class="menu-grid">
+      <button class="menu-card primary" id="btn-create">
+        <span class="mc-icon">🌐</span>
+        <span class="mc-title">Create online room</span>
+        <span class="mc-sub">Get a link to send a friend</span>
+      </button>
+      <div class="menu-card join-card">
+        <span class="mc-icon">🔑</span>
+        <span class="mc-title">Join a room</span>
+        <div class="row">
+          <input id="join-code" placeholder="CODE" maxlength="8" autocomplete="off" spellcheck="false">
+          <button class="btn primary" id="btn-join">Join</button>
+        </div>
+      </div>
+      <button class="menu-card" id="btn-bot">
+        <span class="mc-icon">🤖</span>
+        <span class="mc-title">Play vs Bot</span>
+        <span class="mc-sub">Warm up against a robot rival</span>
+      </button>
+      <button class="menu-card" id="btn-local">
+        <span class="mc-icon">📱</span>
+        <span class="mc-title">Pass &amp; Play</span>
+        <span class="mc-sub">Two players, one device, ghost race</span>
+      </button>
+    </div>
+
+    <div class="panel" id="home-puzzles">
+      <h2>The puzzles</h2>
+      <div class="puzzle-list" id="puzzle-list"></div>
+    </div>
+
+    <div class="panel" id="home-stats"></div>
+
+    <footer class="foot">
+      <button class="btn small" id="sound-toggle">🔊 Sound on</button>
+      <a class="btn small" href="../">← 3D Tic-Tac-Toe</a>
+    </footer>
+  </section>
+
+  <!-- ═════════ LOBBY ═════════ -->
+  <section class="screen hidden" id="screen-lobby">
+    <div class="topbar">
+      <button class="btn small" id="lobby-leave">← Leave</button>
+      <span class="topbar-title" id="lobby-title">Room</span>
+      <span></span>
+    </div>
+
+    <div class="panel invite" id="invite-panel">
+      <div class="invite-label">Room code</div>
+      <div class="room-code" id="room-code">·····</div>
+      <div class="row center">
+        <button class="btn primary" id="copy-link">📋 Copy invite link</button>
+        <button class="btn" id="share-link">📤 Share</button>
+      </div>
+      <div class="invite-hint" id="invite-hint">Send the link to a friend. Keep this tab open.</div>
+    </div>
+
+    <div class="players">
+      <div class="player-card me"><div class="pc-dot"></div><div class="pc-name" id="lobby-me">You</div><div class="pc-role" id="lobby-me-role">Host</div></div>
+      <div class="vs">VS</div>
+      <div class="player-card opp" id="lobby-opp-card"><div class="pc-dot"></div><div class="pc-name" id="lobby-opp">Waiting…</div><div class="pc-role" id="lobby-opp-role"></div></div>
+    </div>
+
+    <div class="panel settings" id="settings-panel">
+      <h2>Match settings <span class="muted small" id="settings-lock"></span></h2>
+      <div class="setting">
+        <span class="setting-label">Length</span>
+        <div class="seg" data-setting="rounds">
+          <button data-v="3">Best of 3</button><button data-v="5">Best of 5</button><button data-v="7">Best of 7</button>
+        </div>
+      </div>
+      <div class="setting">
+        <span class="setting-label">Difficulty</span>
+        <div class="seg" data-setting="diff">
+          <button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button>
+        </div>
+      </div>
+      <div class="setting" id="bot-setting">
+        <span class="setting-label">Bot skill</span>
+        <div class="seg" data-setting="bot">
+          <button data-v="rookie">Rookie</button><button data-v="pro">Pro</button><button data-v="master">Master</button>
+        </div>
+      </div>
+      <div class="setting col">
+        <span class="setting-label">Puzzle pool</span>
+        <div class="pool" id="pool"></div>
+      </div>
+    </div>
+
+    <div class="lobby-actions">
+      <button class="btn primary big" id="btn-start" disabled>Start match</button>
+      <div class="muted small" id="start-hint"></div>
+    </div>
+  </section>
+
+  <!-- ═════════ GAME ═════════ -->
+  <section class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="hud-player me">
+        <div class="hud-top"><span class="hud-name" id="hud-me-name">You</span><span class="hud-score" id="hud-me-score">0</span></div>
+        <div class="pbar"><div class="pbar-fill" id="hud-me-bar"></div></div>
+      </div>
+      <div class="hud-mid">
+        <div class="hud-round" id="hud-round">Round 1</div>
+        <div class="hud-timer" id="hud-timer">0.0s</div>
+      </div>
+      <div class="hud-player opp">
+        <div class="hud-top"><span class="hud-score" id="hud-opp-score">0</span><span class="hud-name" id="hud-opp-name">Rival</span></div>
+        <div class="pbar"><div class="pbar-fill" id="hud-opp-bar"></div></div>
+        <div class="emote-bubble" id="opp-bubble"></div>
+      </div>
+    </div>
+    <div class="puzzle-head">
+      <span class="ph-icon" id="ph-icon"></span>
+      <span class="ph-name" id="ph-name"></span>
+      <span class="ph-how" id="ph-how"></span>
+    </div>
+    <div class="stage-wrap">
+      <div class="stage" id="stage"></div>
+      <div class="stage-overlay hidden" id="penalty"><div class="pen-icon">🥶</div><div class="pen-msg" id="pen-msg"></div><div class="pen-time" id="pen-time"></div></div>
+      <div class="stage-overlay hidden" id="waiting"><div class="wait-msg" id="wait-msg"></div></div>
+    </div>
+    <div class="game-foot">
+      <div class="emotes" id="emotes"></div>
+      <button class="btn small" id="btn-forfeit" title="Give up this round">🏳️ Give up</button>
+    </div>
+    <div class="emote-bubble mine" id="my-bubble"></div>
+  </section>
+
+  <!-- ═════════ FINAL ═════════ -->
+  <section class="screen hidden" id="screen-final">
+    <div class="final-card">
+      <div class="final-emoji" id="final-emoji">🏆</div>
+      <h1 id="final-title">Victory!</h1>
+      <div class="final-score" id="final-score">3 – 1</div>
+      <table class="history" id="final-history"></table>
+      <div class="row center">
+        <button class="btn primary big" id="btn-rematch">🔁 Rematch</button>
+        <button class="btn big" id="btn-final-home">Home</button>
+      </div>
+      <div class="muted small" id="rematch-hint"></div>
+    </div>
+  </section>
+
+  <!-- overlays -->
+  <div class="overlay hidden" id="countdown">
+    <div class="cd-card">
+      <div class="cd-icon" id="cd-icon"></div>
+      <div class="cd-name" id="cd-name"></div>
+      <div class="cd-how" id="cd-how"></div>
+      <div class="cd-num" id="cd-num">3</div>
+    </div>
+  </div>
+  <div class="overlay hidden" id="result">
+    <div class="res-card">
+      <div class="res-emoji" id="res-emoji"></div>
+      <div class="res-title" id="res-title"></div>
+      <div class="res-times" id="res-times"></div>
+      <div class="res-score" id="res-score"></div>
+      <div class="res-next muted small" id="res-next"></div>
+    </div>
+  </div>
+  <div class="overlay hidden" id="handoff">
+    <div class="res-card">
+      <div class="res-emoji">📱</div>
+      <div class="res-title" id="handoff-title">Pass to Player 2</div>
+      <div class="muted" id="handoff-sub"></div>
+      <button class="btn primary big" id="handoff-go">I'm ready</button>
+    </div>
+  </div>
+  <div class="toast hidden" id="toast"></div>
+</div>
+
+<script src="vendor/peerjs.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/net.js"></script>
+<script src="js/puzzles.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
