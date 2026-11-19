@@ -358,6 +358,16 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .final-card { text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding-top: 24px; }
 .final-emoji { font-size: 4.5rem; animation: bob 2.5s ease-in-out infinite; }
 .final-score { font-size: 2.4rem; font-weight: 900; }
+.final-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 520px; }
+.final-stats:empty { display: none; }
+.fs { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; text-align: left; }
+.fs.me { border-color: var(--me); } .fs.opp { border-color: var(--opp); }
+.fs-name { font-weight: 800; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs.me .fs-name { color: var(--me); } .fs.opp .fs-name { color: var(--opp); }
+.fs-row { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--dim); padding: 2px 0; }
+.fs-row b { color: var(--text); font-variant-numeric: tabular-nums; }
+.hud-mute { background: none; border: 0; cursor: pointer; font-size: 0.85rem; opacity: 0.6; padding: 0; }
+.hud-mute:hover { opacity: 1; }
 .history { border-collapse: collapse; width: 100%; max-width: 520px; font-size: 0.9rem; }
 .history td, .history th { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: center; }
 .history th { color: var(--dim); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.8px; }

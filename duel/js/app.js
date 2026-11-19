@@ -751,6 +751,21 @@
       };
       tb.appendChild(el('tr', null, el('td', null, String(h.i + 1)), el('td', null, pz.icon + ' ' + pz.name), cell(left), cell(right)));
     });
+    // per-player summary stats
+    const statBox = $('final-stats'); statBox.innerHTML = '';
+    if (S.mode !== 'practice') {
+      [left, right].forEach(role => {
+        const ts = M.history.map(h => h.times[role]).filter(t => t != null);
+        const fastest = ts.length ? Math.min(...ts) : null;
+        const avg = ts.length ? ts.reduce((a, b) => a + b, 0) / ts.length : null;
+        statBox.appendChild(el('div', { class: 'fs ' + sideOf(role) },
+          el('div', { class: 'fs-name' }, nameOf(role)),
+          el('div', { class: 'fs-row' }, el('span', null, 'Rounds won'), el('b', null, String(M.scores[role]))),
+          el('div', { class: 'fs-row' }, el('span', null, 'Fastest solve'), el('b', null, fmtTime(fastest))),
+          el('div', { class: 'fs-row' }, el('span', null, 'Average solve'), el('b', null, fmtTime(avg))),
+          el('div', { class: 'fs-row' }, el('span', null, 'Puzzles solved'), el('b', null, `${ts.length}/${M.history.length}`))));
+      });
+    }
     $('rematch-hint').textContent = '';
     $('btn-rematch').textContent = '🔁 Rematch';
     $('btn-rematch').classList.toggle('hidden', S.mode === 'daily');
@@ -1163,8 +1178,9 @@
 
     Sound.enabled = store('sound') !== false;
     const st = $('sound-toggle');
-    const drawSound = () => { st.textContent = Sound.enabled ? '🔊 Sound on' : '🔇 Sound off'; };
+    const drawSound = () => { st.textContent = Sound.enabled ? '🔊 Sound on' : '🔇 Sound off'; $('hud-mute').textContent = Sound.enabled ? '🔊' : '🔇'; };
     st.onclick = () => { Sound.enabled = !Sound.enabled; store('sound', Sound.enabled); drawSound(); Sound.click(); };
+    $('hud-mute').onclick = st.onclick;
     drawSound();
 
     document.addEventListener('keydown', e => {
