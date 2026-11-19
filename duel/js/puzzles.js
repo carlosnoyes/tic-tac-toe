@@ -223,20 +223,12 @@
   // ───────────────────────── Minesweeper ─────────────────────────
   register({
     id: 'mines', name: 'Mine Dash', icon: '💣',
-    blurb: 'Minesweeper race. Hitting a mine freezes you for 4 seconds.',
+    blurb: 'Guess-free minesweeper race. Hitting a mine freezes you for 4s.',
     how: 'Tap to reveal, long-press / right-click (or 🚩 mode) to flag. Tap a number whose flags are all set to clear around it.',
     bot: { easy: 35, normal: 60, hard: 100 },
     create(root, api) {
       const [w, h, m] = pick(api.diff, [8, 8, 9], [9, 9, 13], [11, 11, 22]);
       const N = w * h;
-      const mine = new Array(N).fill(false);
-      const idxs = api.rng.shuffle(Array.from({ length: N }, (_, i) => i));
-      // reserve a safe 3×3 opening around a seeded start cell
-      const sr = api.rng.range(1, h - 2), sc = api.rng.range(1, w - 2);
-      const reserved = new Set();
-      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) reserved.add((sr + dr) * w + sc + dc);
-      let placed = 0;
-      for (const i of idxs) { if (placed >= m) break; if (!reserved.has(i)) { mine[i] = true; placed++; } }
       const nb = i => {
         const r = Math.floor(i / w), c = i % w, out = [];
         for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
@@ -246,7 +238,54 @@
         }
         return out;
       };
-      const count = mine.map((_, i) => nb(i).filter(j => mine[j]).length);
+      const NB = Array.from({ length: N }, (_, i) => nb(i));
+      let mine, count, sr, sc;
+      // Generate boards until one is solvable by pure logic from the opening (no guessing),
+      // so the race is decided by skill. Deterministic: both players draw the same sequence.
+      for (let attempt = 0; attempt < 60; attempt++) {
+        mine = new Array(N).fill(false);
+        const idxs = api.rng.shuffle(Array.from({ length: N }, (_, i) => i));
+        sr = api.rng.range(1, h - 2); sc = api.rng.range(1, w - 2);
+        const reserved = new Set();
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) reserved.add((sr + dr) * w + sc + dc);
+        let placed = 0;
+        for (const i of idxs) { if (placed >= m) break; if (!reserved.has(i)) { mine[i] = true; placed++; } }
+        count = mine.map((_, i) => NB[i].filter(j => mine[j]).length);
+        if (logicSolvable(sr * w + sc)) break;
+      }
+      function logicSolvable(startIdx) {
+        const open = new Array(N).fill(false), flag = new Array(N).fill(false);
+        let opened = 0;
+        const openCell = i => {
+          const st = [i];
+          while (st.length) { const j = st.pop(); if (open[j] || mine[j]) continue; open[j] = true; opened++; if (!count[j]) NB[j].forEach(k => { if (!open[k]) st.push(k); }); }
+        };
+        openCell(startIdx);
+        let progress = true;
+        while (progress && opened < N - m) {
+          progress = false;
+          const cons = [];
+          for (let i = 0; i < N; i++) {
+            if (!open[i] || !count[i]) continue;
+            const unk = NB[i].filter(j => !open[j] && !flag[j]);
+            if (!unk.length) continue;
+            const need = count[i] - NB[i].filter(j => flag[j]).length;
+            if (need === 0) { unk.forEach(openCell); progress = true; }
+            else if (need === unk.length) { unk.forEach(j => { flag[j] = true; }); progress = true; }
+            else cons.push({ set: unk, need });
+          }
+          if (progress) continue;
+          // subset rule: if A ⊂ B then B\A holds need(B)-need(A) mines
+          outer: for (const a of cons) for (const b of cons) {
+            if (a === b || a.set.length >= b.set.length) continue;
+            if (!a.set.every(x => b.set.includes(x))) continue;
+            const rest = b.set.filter(x => !a.set.includes(x)), dn = b.need - a.need;
+            if (dn === 0) { rest.forEach(openCell); progress = true; break outer; }
+            if (dn === rest.length) { rest.forEach(j => { flag[j] = true; }); progress = true; break outer; }
+          }
+        }
+        return opened === N - m;
+      }
       const revealed = new Array(N).fill(false), flagged = new Array(N).fill(false);
       const safeTotal = N - m;
       let safeRevealed = 0, flagMode = false, finished = false;
