@@ -742,7 +742,9 @@
     const left = S.mode === 'guest' ? 'guest' : 'host';
     times.append(tCell(left), tCell(left === 'host' ? 'guest' : 'host'));
     $('res-score').textContent = `${nameOf(left)} ${m.scores[left]} – ${m.scores[left === 'host' ? 'guest' : 'host']} ${nameOf(left === 'host' ? 'guest' : 'host')}`;
-    $('res-next').textContent = m.over ? 'Match over!' : 'Next round starting…';
+    const th = m.times.host, tg = m.times.guest;
+    const margin = th != null && tg != null ? ` · won by ${fmtTime(Math.abs(th - tg))}` : '';
+    $('res-next').textContent = (m.over ? 'Match over!' : 'Next round starting…') + margin;
     overlay('result', true);
     if (m.over) {
       setTimeout(() => { overlay('result', false); showFinal(m.matchWinner); }, 2600);
