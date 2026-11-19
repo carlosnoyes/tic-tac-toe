@@ -40,11 +40,24 @@
     join(code) {
       if (typeof Peer === 'undefined') { this.h.onError('Networking library failed to load.'); return; }
       this.peer = new Peer({ debug: 0 });
-      this.peer.on('open', () => {
-        const conn = this.peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
-        this._bind(conn);
+      this.code = code; this.tries = 0;
+      this.peer.on('open', () => this._connect());
+      this.peer.on('error', err => {
+        // the host may still be registering (or briefly reconnecting) — retry a few times
+        if (err && err.type === 'peer-unavailable' && this.tries < 4 && !this.closed) {
+          this.h.onStatus && this.h.onStatus(`Looking for room… (retry ${this.tries})`);
+          setTimeout(() => this._connect(), 1500);
+          return;
+        }
+        this._err(err);
       });
-      this.peer.on('error', err => this._err(err));
+    }
+
+    _connect() {
+      if (this.closed) return;
+      this.tries++;
+      const conn = this.peer.connect(PREFIX + this.code, { reliable: true, serialization: 'json' });
+      this._bind(conn);
     }
 
     _bind(conn) {

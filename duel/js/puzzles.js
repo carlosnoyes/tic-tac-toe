@@ -757,6 +757,82 @@
     },
   });
 
+  // ───────────────────────── Unscramble ─────────────────────────
+  const WORDS = {"4": ["BAKE", "BALL", "BEAR", "BIRD", "BLUE", "BOAT", "BOOK", "CAKE", "CAMP", "CARD", "CAVE", "CITY", "COIN", "COLD", "CORN", "DARK", "DEER", "DESK", "DOOR", "DUCK", "EASY", "FARM", "FISH", "FLAG", "FROG", "GAME", "GIFT", "GOLD", "GOAT", "HAND", "HILL", "HOME", "JUMP", "KING", "KITE", "LAKE", "LAMP", "LEAF", "LION", "MILK", "MOON", "NEST", "NOTE", "PARK", "PINK", "RAIN", "ROAD", "ROCK", "ROOF", "ROPE", "SAND", "SHIP", "SNOW", "SOCK", "SOUP", "STAR", "SWIM", "TREE", "WAVE", "WIND", "WOLF", "YARD", "ZOOM"], "5": ["APPLE", "BEACH", "BRAIN", "BREAD", "BRICK", "CANDY", "CHAIR", "CHALK", "CLOCK", "CLOUD", "CROWN", "DANCE", "DREAM", "EAGLE", "EARTH", "FEAST", "FLAME", "FLUTE", "FROST", "GHOST", "GLOBE", "GRAPE", "GRASS", "HEART", "HONEY", "HORSE", "HOUSE", "JELLY", "JUICE", "KNIFE", "LEMON", "LIGHT", "MANGO", "MAGIC", "MONEY", "MOUSE", "MUSIC", "NIGHT", "OCEAN", "OLIVE", "PAINT", "PANDA", "PEARL", "PIANO", "PIZZA", "PLANT", "QUEEN", "RADIO", "RIVER", "ROBOT", "SALAD", "SHARK", "SHEEP", "SMILE", "SNAKE", "SPOON", "STORM", "SUGAR", "TABLE", "TIGER", "TOAST", "TRAIN", "TRUCK", "WATER", "WHALE", "WORLD", "ZEBRA"], "6": ["ANCHOR", "BASKET", "BRIDGE", "BUTTER", "CACTUS", "CAMERA", "CANDLE", "CARROT", "CASTLE", "CHEESE", "CIRCLE", "COFFEE", "COOKIE", "DONKEY", "DRAGON", "FLOWER", "FOREST", "GARDEN", "GUITAR", "HAMMER", "ISLAND", "JACKET", "JUNGLE", "KITTEN", "LADDER", "LIZARD", "MARBLE", "MIRROR", "MONKEY", "ORANGE", "PARROT", "PENCIL", "PEPPER", "PLANET", "POCKET", "POTATO", "PUZZLE", "RABBIT", "ROCKET", "SADDLE", "SILVER", "SPIDER", "SPRING", "SUMMER", "TEMPLE", "TICKET", "TOMATO", "TUNNEL", "TURTLE", "VIOLIN", "WINDOW", "WINTER", "WIZARD", "YELLOW"]};
+  register({
+    id: 'words', name: 'Unscramble', icon: '🔤', dictionary: WORDS,
+    blurb: 'Five scrambled words. Unjumble them first.',
+    how: 'Tap the letters (or type) to spell the hidden word. Any valid word using all the letters counts.',
+    bot: { easy: 25, normal: 38, hard: 55 },
+    create(root, api) {
+      const len = pick(api.diff, 4, 5, 6);
+      const list = WORDS[len];
+      const sorted = w => w.split('').sort().join('');
+      const valid = new Set(list);
+      const COUNT = 5;
+      const words = api.rng.shuffle(list).slice(0, COUNT);
+      const scrambles = words.map(w => {
+        let sc; let guard = 0;
+        do { sc = api.rng.shuffle(w.split('')); guard++; } while (valid.has(sc.join('')) && guard < 20);
+        return sc;
+      });
+      let idx = 0, picked = [];
+      const dots = el('div', { class: 'math-dots' }, ...words.map(() => el('span')));
+      const answer = el('div', { class: 'word-answer' });
+      const tiles = el('div', { class: 'word-tiles' });
+      const ctrl = el('div', { class: 'puzzle-toolbar' });
+      const clr = el('button', { class: 'btn small' }, '⌫ Back');
+      const shuffleBtn = el('button', { class: 'btn small' }, '🔀 Shuffle');
+      onPress(clr, () => { picked.pop(); draw(); });
+      let order = null;
+      onPress(shuffleBtn, () => { order = api.rng.shuffle(order); draw(); });
+      ctrl.append(clr, shuffleBtn);
+      function setup() { picked = []; order = scrambles[idx].map((_, k) => k); draw(); dots.children[idx].className = 'cur'; }
+      function draw() {
+        const letters = scrambles[idx];
+        answer.innerHTML = '';
+        for (let k = 0; k < len; k++) answer.appendChild(el('span', { class: 'wslot' + (picked[k] != null ? ' full' : '') }, picked[k] != null ? letters[picked[k]] : ''));
+        tiles.innerHTML = '';
+        order.forEach(k => {
+          const t = el('button', { class: 'wtile' + (picked.includes(k) ? ' used' : '') }, letters[k]);
+          onPress(t, () => choose(k));
+          tiles.appendChild(t);
+        });
+      }
+      function choose(k) {
+        if (picked.includes(k)) { picked = picked.slice(0, picked.indexOf(k)); draw(); return; }
+        picked.push(k); Sound.click(); draw();
+        if (picked.length === len) {
+          const w = picked.map(i => scrambles[idx][i]).join('');
+          if (valid.has(w) || w === words[idx]) {
+            Sound.good(); dots.children[idx].className = 'ok';
+            idx++; api.progress(idx / COUNT);
+            if (idx >= COUNT) { api.done(); return; }
+            setTimeout(setup, 120);
+          } else {
+            Sound.bad(); shake(answer);
+            setTimeout(() => { picked = []; draw(); }, 250);
+          }
+        }
+      }
+      setup();
+      root.append(dots, answer, tiles, ctrl);
+      return {
+        onKey(e) {
+          if (idx >= COUNT) return;
+          const k = e.key.toUpperCase();
+          if (e.key === 'Backspace') { picked.pop(); draw(); e.preventDefault(); return; }
+          if (/^[A-Z]$/.test(k)) {
+            const letters = scrambles[idx];
+            const j = order.find(i => letters[i] === k && !picked.includes(i));
+            if (j != null) choose(j);
+          }
+        },
+        destroy() {},
+      };
+    },
+  });
+
   window.PD = window.PD || {};
   PD.Puzzles = { list: registry, byId, register, pick, onPress };
 })();

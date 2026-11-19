@@ -222,6 +222,7 @@
     S.net = PD.Net.create({
       onReady: () => {},
       onOpen: () => send({ t: 'hello', name: myName(), v: VERSION }),
+      onStatus: msg => { $('start-hint').textContent = msg; },
       onMessage: onMessage,
       onClose: () => onPeerLeft(),
       onError: (msg) => { toast(msg, true); goHome(); },
@@ -650,6 +651,20 @@
 
   let cdTimer = null;
   function countdown(pz, then) {
+    const M = S.match, R = S.round;
+    let ctxTxt = '';
+    if (M && R) {
+      if (S.mode === 'practice') ctxTxt = 'Practice · ' + R.diff;
+      else if (S.mode === 'daily') ctxTxt = `Daily ${S.daily.date} · puzzle ${R.i + 1} of 3`;
+      else {
+        const who = S.mode === 'local' ? `${nameOf(R.turn)}'s turn · ` : '';
+        ctxTxt = `${who}Round ${R.i + 1} · ${nameOf(myRole())} ${M.scores[myRole()]} – ${M.scores[oppRole()]} ${nameOf(oppRole())}`;
+        const target = Math.floor(M.rounds / 2) + 1;
+        if (M.scores.host === target - 1 && M.scores.guest === target - 1) ctxTxt += ' · DECIDER!';
+        else if (M.scores.host === target - 1 || M.scores.guest === target - 1) ctxTxt += ' · match point';
+      }
+    }
+    $('cd-ctx').textContent = ctxTxt;
     $('cd-icon').textContent = pz.icon;
     $('cd-name').textContent = pz.name;
     $('cd-how').textContent = pz.how;

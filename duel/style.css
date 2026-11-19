@@ -314,9 +314,19 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .odd-cell { aspect-ratio: 1; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .odd-cell:hover { border-color: var(--border2); }
 
+/* Unscramble */
+.word-answer { display: flex; gap: 6px; }
+.wslot { width: clamp(40px, 12vw, 54px); height: clamp(46px, 13vw, 60px); border-bottom: 3px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 900; color: var(--me); }
+.wslot.full { border-color: var(--me); }
+.word-tiles { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.wtile { width: clamp(44px, 13vw, 58px); height: clamp(44px, 13vw, 58px); border-radius: 12px; border: 1px solid var(--border2); background: linear-gradient(145deg, var(--surface3), var(--surface)); color: var(--text); font-size: 1.6rem; font-weight: 900; cursor: pointer; transition: transform 0.08s, opacity 0.15s; }
+.wtile:active { transform: scale(0.92); }
+.wtile.used { opacity: 0.25; }
+
 /* ── overlays ── */
 .overlay { position: fixed; inset: 0; background: rgba(5,5,18,0.78); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; animation: fade-in 0.2s; }
 .cd-card, .res-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px 32px; text-align: center; max-width: 420px; width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.cd-ctx { font-size: 0.78rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
 .cd-icon { font-size: 3rem; }
 .cd-name { font-size: 1.8rem; font-weight: 900; }
 .cd-how { color: var(--dim); }
@@ -370,9 +380,9 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
   .players { grid-template-columns: 1fr; }
   .vs { text-align: center; }
   .setting-label { min-width: 0; width: 100%; }
-  .emotes { flex-wrap: nowrap; gap: 3px; }
-  .emotes button { font-size: 1rem; padding: 3px 5px; }
-  .game-foot { flex-wrap: nowrap; }
-  .game-foot #btn-forfeit { padding: 6px 8px; }
+  .emotes { flex-wrap: nowrap; gap: 3px; width: 100%; justify-content: space-between; }
+  .emotes button { font-size: 1rem; padding: 4px 0; flex: 1; }
+  .game-foot { flex-wrap: wrap; justify-content: center; }
+  .game-foot > .row { width: 100%; justify-content: center; }
   .slide-board { transform-origin: top center; }
 }
