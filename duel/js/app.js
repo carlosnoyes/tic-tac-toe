@@ -1221,6 +1221,7 @@
     drawSound();
 
     document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !$('handoff').classList.contains('hidden')) { e.preventDefault(); $('handoff-go').click(); return; }
       const R = S.round;
       if (!R || !R.active || !R.puzzle || !R.puzzle.onKey) return;
       if (e.target && e.target.tagName === 'INPUT') return;
