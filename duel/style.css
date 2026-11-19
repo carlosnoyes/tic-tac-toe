@@ -31,6 +31,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 button { font-family: inherit; }
+button:focus-visible, input:focus-visible, .pool-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .hidden { display: none !important; }
 .muted { color: var(--dim); }
 .small { font-size: 0.8rem; }

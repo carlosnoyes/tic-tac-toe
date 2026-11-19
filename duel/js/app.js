@@ -10,8 +10,10 @@
   const NOUN = ['Otter', 'Falcon', 'Panda', 'Fox', 'Wizard', 'Ninja', 'Llama', 'Comet', 'Tiger', 'Pixel', 'Badger', 'Koala', 'Raven', 'Gecko', 'Yeti'];
   const randomName = () => ADJ[Math.floor(Math.random() * ADJ.length)] + NOUN[Math.floor(Math.random() * NOUN.length)];
   const EMOTES = ['👍', '😂', '😱', '🔥', '😤', '🤯', '🐢', 'GG'];
-  const BOT_SKILL = { rookie: 1.7, pro: 1.0, master: 0.68 };
-  const BOT_NAMES = { rookie: 'Bolt (Rookie)', pro: 'Cogsworth (Pro)', master: 'Deep Puzzle (Master)' };
+  const BOT_SKILL = { rookie: 1.7, pro: 1.0, master: 0.68, adaptive: 1.0 };
+  const BOT_NAMES = { rookie: 'Bolt (Rookie)', pro: 'Cogsworth (Pro)', master: 'Deep Puzzle (Master)', adaptive: 'Mirror (Adaptive)' };
+  let adaptiveMul = store('adaptiveMul') || 1.15;
+  const botMul = () => S.settings.bot === 'adaptive' ? adaptiveMul : (BOT_SKILL[S.settings.bot] || 1);
   const TIME_LIMIT = { easy: 90, normal: 150, hard: 210 };
 
   const S = {
@@ -286,6 +288,7 @@
         if (S.mode !== 'host') return;
         S.connected = true;
         S.oppName = String(m.name || 'Rival').slice(0, 16);
+        if (m.v !== VERSION) toast(`${S.oppName} is on a different version — ask them to refresh.`, true);
         send({ t: 'welcome', name: myName(), settings: S.settings, v: VERSION });
         startHeartbeat();
         Sound.good();
@@ -296,6 +299,7 @@
         S.connected = true;
         S.oppName = String(m.name || 'Host').slice(0, 16);
         S.settings = Object.assign(S.settings, m.settings);
+        if (m.v !== VERSION) toast('The host is on a different version — one of you should refresh.', true);
         startHeartbeat();
         $('invite-hint').textContent = 'Connected!';
         Sound.good();
@@ -488,6 +492,7 @@
   }
 
   function beginRound(msg) {
+    if (!P.byId[msg.pid]) { toast('Your rival picked a puzzle this version doesn’t have — refresh the page.', true); return; }
     endRoundUI();
     overlay('result', false); overlay('pick', false); clearInterval(pickTimer); S.pickFor = null;
     const pz = P.byId[msg.pid];
@@ -704,6 +709,11 @@
     else if (m.winner === me) { emoji = '🎉'; title = 'Round won!'; cls = 'win'; Sound.win(); }
     else { emoji = '😖'; title = 'Round lost'; cls = 'lose'; Sound.lose(); }
     if (S.mode === 'bot' && m.winner) setTimeout(() => botEmote(m.winner === 'guest' ? 'win' : 'lose'), 700);
+    if (S.mode === 'bot' && S.settings.bot === 'adaptive' && m.winner) {
+      // Mirror gets faster when you win and slower when it wins, homing in on your level
+      adaptiveMul = Math.min(2.4, Math.max(0.45, adaptiveMul * (m.winner === 'host' ? 0.88 : 1.1)));
+      store('adaptiveMul', adaptiveMul);
+    }
     $('res-emoji').textContent = emoji;
     $('res-title').textContent = title; $('res-title').className = 'res-title ' + cls;
     const tCell = role => {
@@ -1023,7 +1033,7 @@
   // ─────────────── bot ───────────────
   function startBot(R) {
     const pz = P.byId[R.pid];
-    const base = (pz.bot[R.diff] || 40) * BOT_SKILL[S.settings.bot];
+    const base = (pz.bot[R.diff] || 40) * botMul();
     const total = base * (0.8 + Math.random() * 0.45) * 1000;
     let p = 0, work = 0, stall = 0;
     const powerAt = 0.5 + Math.random() * 0.35;
