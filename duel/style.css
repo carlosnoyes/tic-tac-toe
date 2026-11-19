@@ -158,6 +158,8 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .hud-mid { text-align: center; }
 .hud-round { font-size: 0.72rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
 .hud-timer { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 80px; }
+.ping { font-size: 0.68rem; color: var(--dim); min-height: 0.9em; }
+.ping.good { color: var(--good); } .ping.ok { color: var(--gold); } .ping.bad { color: var(--bad); }
 .hud-timer.low { color: var(--bad); }
 
 .puzzle-head { display: flex; gap: 8px; align-items: baseline; justify-content: center; flex-wrap: wrap; text-align: center; }

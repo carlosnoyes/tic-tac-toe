@@ -66,6 +66,7 @@
     }
 
     send(msg) { if (this.conn && this.conn.open) this.conn.send(msg); }
+    drop() { const c = this.conn; this.conn = null; try { c && c.close(); } catch (e) {} }
     get connected() { return !!(this.conn && this.conn.open); }
     close() {
       this.closed = true;
@@ -108,6 +109,7 @@
       if (d._bc === 'msg' && d.from === this.other) this.h.onMessage && this.h.onMessage(d.m);
     }
     send(m) { if (this.open) this.ch.postMessage({ _bc: 'msg', from: this.id, m }); }
+    drop() { this.open = false; this.other = null; }
     get connected() { return this.open; }
     close() { try { this.ch.postMessage({ _bc: 'bye', from: this.id }); this.ch.close(); } catch (e) {} this.open = false; }
   }

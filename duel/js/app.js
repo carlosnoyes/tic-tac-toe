@@ -90,6 +90,7 @@
   }
 
   function teardownNet() {
+    clearInterval(hbTimer); S.rtt = null; showPing();
     if (S.net) { try { S.net.send({ t: 'bye' }); } catch (e) {} S.net.close(); }
     S.net = null; S.connected = false; S.oppName = null;
   }
@@ -214,12 +215,14 @@
 
   function onPeerLeft() {
     if (!S.connected) return;
-    S.connected = false;
+    S.connected = false; S.rtt = null; showPing();
     const who = S.oppName || 'Your rival';
     toast(`${who} disconnected.`, true);
     if (S.mode === 'guest') { goHome(); return; }
-    // host: back to lobby, keep room open
+    // host: back to lobby, keep room open for a new guest
     S.oppName = null;
+    clearInterval(hbTimer);
+    if (S.net && S.net.drop) S.net.drop();
     abortMatch();
     openLobby();
   }
@@ -231,14 +234,35 @@
     clearInterval(pickTimer); S.pickFor = null;
   }
 
+  // ─────────────── heartbeat / latency ───────────────
+  let hbTimer = null;
+  function startHeartbeat() {
+    clearInterval(hbTimer);
+    S.lastSeen = Date.now();
+    hbTimer = setInterval(() => {
+      if (!S.net || !S.connected) return;
+      send({ t: 'ping', ts: Date.now() });
+      if (Date.now() - S.lastSeen > 15000) { toast('Connection lost.', true); onPeerLeft(); }
+    }, 2000);
+  }
+  function showPing() {
+    const txt = S.connected && S.rtt != null ? `📶 ${S.rtt} ms` : '';
+    const q = S.rtt == null ? '' : S.rtt < 120 ? 'good' : S.rtt < 300 ? 'ok' : 'bad';
+    ['hud-ping', 'lobby-ping'].forEach(id => { const e = $(id); if (e) { e.textContent = txt; e.className = 'ping ' + q; } });
+  }
+
   function onMessage(m) {
     if (!m || typeof m !== 'object') return;
+    S.lastSeen = Date.now();
     switch (m.t) {
+      case 'ping': send({ t: 'pong', ts: m.ts }); return;
+      case 'pong': S.rtt = Math.max(1, Date.now() - m.ts); showPing(); return;
       case 'hello': // guest → host
         if (S.mode !== 'host') return;
         S.connected = true;
         S.oppName = String(m.name || 'Rival').slice(0, 16);
         send({ t: 'welcome', name: myName(), settings: S.settings, v: VERSION });
+        startHeartbeat();
         Sound.good();
         toast(`${S.oppName} joined!`);
         if (!S.match) { renderOppCard(); updateStartButton(); }
@@ -247,6 +271,7 @@
         S.connected = true;
         S.oppName = String(m.name || 'Host').slice(0, 16);
         S.settings = Object.assign(S.settings, m.settings);
+        startHeartbeat();
         $('invite-hint').textContent = 'Connected!';
         Sound.good();
         renderOppCard(); renderSettings(); updateStartButton();
