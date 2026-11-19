@@ -344,6 +344,7 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .overlay { position: fixed; inset: 0; background: rgba(5,5,18,0.78); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; animation: fade-in 0.2s; }
 .cd-card, .res-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px 32px; text-align: center; max-width: 420px; width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
 .cd-ctx { font-size: 0.78rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+.cd-limit { text-transform: capitalize; }
 .cd-icon { font-size: 3rem; }
 .cd-name { font-size: 1.8rem; font-weight: 900; }
 .cd-how { color: var(--dim); }

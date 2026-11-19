@@ -694,6 +694,7 @@
       }
     }
     $('cd-ctx').textContent = ctxTxt;
+    $('cd-limit').textContent = R ? `${R.diff} · ${Math.floor(R.limit / 60)}:${String(R.limit % 60).padStart(2, '0')} time limit` : '';
     $('cd-icon').textContent = pz.icon;
     $('cd-name').textContent = pz.name;
     $('cd-how').textContent = pz.how;
