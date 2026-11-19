@@ -167,6 +167,13 @@
       });
       pool.appendChild(item);
     });
+    if (!locked) {
+      const all = el('button', { class: 'btn small' }, 'All');
+      const none = el('button', { class: 'btn small' }, 'Clear');
+      all.onclick = () => { S.settings.pool = P.list.map(p => p.id); settingsChanged(); };
+      none.onclick = () => { S.settings.pool = [S.settings.pool[0] || P.list[0].id]; settingsChanged(); };
+      pool.appendChild(el('div', { class: 'row pool-actions' }, all, none));
+    }
   }
 
   function settingsChanged() {
@@ -988,11 +995,19 @@
     lines.push('Beat my ghost 👉 ' + challengeLink());
     return lines.join('\n');
   }
+  function dailyStreak() {
+    let n = 0;
+    const d = new Date();
+    if (!store('daily:' + todayKey(d))) d.setUTCDate(d.getUTCDate() - 1); // streak still alive if yesterday was played
+    while (store('daily:' + todayKey(d))) { n++; d.setUTCDate(d.getUTCDate() - 1); }
+    return n;
+  }
   function renderDailyCard() {
     const key = todayKey();
     const mine = store('daily:' + key);
     const { pool } = dailySetup(key);
-    $('daily-sub').textContent = pool.map(id => P.byId[id].icon).join(' ') + '  ·  ' + (mine ? `Today: ${mine.times.every(t => t != null) ? fmtTime(mine.total) : 'DNF'} — play again?` : 'Same 3 puzzles for everyone today');
+    const streak = dailyStreak();
+    $('daily-sub').textContent = pool.map(id => P.byId[id].icon).join(' ') + '  ·  ' + (mine ? `Today: ${mine.times.every(t => t != null) ? fmtTime(mine.total) : 'DNF'} — play again?` : 'Same 3 puzzles for everyone today') + (streak > 1 ? `  ·  🔥 ${streak}-day streak` : '');
   }
 
   // ─────────────── power-ups ───────────────
