@@ -38,6 +38,7 @@
     if (S.mode === 'local') return role === 'host' ? myName() : S.local.p2;
     if (S.mode === 'bot') return role === 'host' ? myName() : BOT_NAMES[S.settings.bot];
     if (S.mode === 'daily') return role === 'host' ? myName() : (S.daily && S.daily.vs ? S.daily.vs.n : 'Par ⏱');
+    if (S.mode === 'practice') return role === 'host' ? myName() : (S.practice && S.practice.best ? 'Your best 👻' : 'Par ⏱');
     return role === myRole() ? myName() : (S.oppName || 'Rival');
   };
   const myName = () => ($('name-input').value.trim() || 'Player');
@@ -69,14 +70,15 @@
 
   function renderHome() {
     renderDailyCard();
+    document.querySelectorAll('.practice-diff .seg button').forEach(b => b.classList.toggle('on', b.dataset.v === (S.settings.diff || 'normal')));
     const list = $('puzzle-list'); list.innerHTML = '';
     const best = (store('stats') || {}).best || {};
     P.list.forEach(p => {
-      const b = best[p.id + ':normal'];
-      list.appendChild(el('div', { class: 'pl-item' },
+      const b = best[p.id + ':' + (S.settings.diff || 'normal')];
+      list.appendChild(el('button', { class: 'pl-item', title: 'Practice ' + p.name, onclick: () => { Sound.click(); startPractice(p.id); } },
         el('div', { class: 'pl-icon' }, p.icon),
         el('div', null, el('div', { class: 'pl-name' }, p.name), el('div', { class: 'pl-blurb' }, p.blurb),
-          b ? el('div', { class: 'pl-best' }, '⏱ Best (normal): ' + fmtTime(b)) : null)));
+          b ? el('div', { class: 'pl-best' }, `⏱ Best (${S.settings.diff || 'normal'}): ` + fmtTime(b)) : null)));
     });
     const st = store('stats') || {};
     const box = $('home-stats');
@@ -170,6 +172,7 @@
     renderSettings();
     renderOppCard();
     if (S.mode === 'host') send({ t: 'settings', settings: S.settings });
+    if (!S.mode) renderHome();
   }
 
   function updateStartButton() {
@@ -548,7 +551,7 @@
       if (R.initProg) api.progress(R.initProg);
       updatePowerButton();
       if (S.mode === 'bot') startBot(R);
-      if (S.mode === 'daily') startDailyGhost(R);
+      if (S.mode === 'daily' || S.mode === 'practice') startDailyGhost(R);
       if (S.mode === 'local' && R.turn === 'guest') startGhost(R);
       if (isAuthority() && S.mode !== 'local') {
         R.limitTimer = setTimeout(() => { if (S.round === R) { timeUp(); hostResolve(); } }, R.limit * 1000 + 600);
@@ -726,11 +729,15 @@
       tb.appendChild(el('tr', null, el('td', null, String(h.i + 1)), el('td', null, pz.icon + ' ' + pz.name), cell(left), cell(right)));
     });
     $('rematch-hint').textContent = '';
+    $('btn-rematch').textContent = '🔁 Rematch';
     $('btn-rematch').classList.toggle('hidden', S.mode === 'daily');
+    $('btn-share-result').classList.toggle('hidden', S.mode === 'practice');
+    $('btn-share-result').textContent = '📋 Share result';
     if (S.mode === 'daily') dailyFinished();
+    if (S.mode === 'practice') practiceFinished();
     $('btn-final-home').textContent = (S.mode === 'host' || S.mode === 'guest') ? 'Back to lobby' : 'Home';
     // stats (only for online + bot)
-    if (S.mode !== 'local' && S.mode !== 'daily') {
+    if (S.mode !== 'local' && S.mode !== 'daily' && S.mode !== 'practice') {
       const st = store('stats') || {};
       st.played = (st.played || 0) + 1;
       if (winner === me) st.won = (st.won || 0) + 1;
@@ -741,6 +748,7 @@
   }
 
   function rematch() {
+    if (S.mode === 'practice') { startPractice(S.practice.pid); return; }
     if (S.mode === 'bot' || S.mode === 'local') { hostStartMatch(); return; }
     if (!S.connected) { toast('Your rival has left.', true); return; }
     S.rematch[myRole()] = true;
@@ -832,6 +840,28 @@
     catch (e) { prompt('Copy your result:', text); }
   }
 
+  // ─────────────── practice ───────────────
+  function startPractice(pid) {
+    teardownNet();
+    const diff = S.settings.diff || 'normal';
+    const best = ((store('stats') || {}).best || {})[pid + ':' + diff] || null;
+    S.mode = 'practice';
+    S.practice = { pid, diff, best };
+    beginMatch({ seed: randomSeed(), rounds: 1, diff, pool: [pid], order: 'random', playAll: true });
+    setTimeout(() => hostNextRound(), 300);
+  }
+  function practiceFinished() {
+    const M = S.match, Pr = S.practice, h = M.history[0];
+    const t = h && h.times.host;
+    const pz = P.byId[Pr.pid];
+    $('btn-rematch').textContent = '🔁 Again';
+    $('final-score').innerHTML = `${pz.icon} ${pz.name} <span class="muted small">(${Pr.diff})</span>`;
+    if (t != null && (!Pr.best || t < Pr.best)) { $('final-emoji').textContent = '🏅'; $('final-title').textContent = Pr.best ? 'New personal best!' : 'First time set!'; confetti(); }
+    else if (t != null) { $('final-emoji').textContent = '⏱'; $('final-title').textContent = 'Solved!'; }
+    else { $('final-emoji').textContent = '🧠'; $('final-title').textContent = 'Keep practising'; }
+    $('rematch-hint').innerHTML = `Your time: <b>${t != null ? fmtTime(t) : 'DNF'}</b>` + (Pr.best ? ` · previous best: ${fmtTime(Pr.best)}` : '');
+  }
+
   // ─────────────── daily challenge ───────────────
   function todayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
   function dailySetup(date) {
@@ -852,9 +882,9 @@
   }
   function startDailyGhost(R) {
     // ghost of a friend's run (from a challenge link) or "par" (bot pro pace)
-    const vs = S.daily && S.daily.vs;
+    const vs = S.mode === 'daily' && S.daily && S.daily.vs;
     const pz = P.byId[R.pid];
-    const t = vs ? (vs.t[R.i] != null ? vs.t[R.i] : null) : pz.bot.normal * 1000;
+    const t = S.mode === 'practice' ? (S.practice.best || pz.bot[R.diff] * 1000) : vs ? (vs.t[R.i] != null ? vs.t[R.i] : null) : pz.bot.normal * 1000;
     const finalP = vs && vs.t[R.i] == null ? (vs.p && vs.p[R.i] || 0.5) : 1;
     R.bot = setInterval(() => {
       if (R.resolved) { clearInterval(R.bot); return; }
@@ -912,7 +942,7 @@
 
   // ─────────────── power-ups ───────────────
   const FREEZE_MS = 3000;
-  function powerupsActive() { return !!(S.match && S.match.powerups) && S.mode !== 'local' && S.mode !== 'daily'; }
+  function powerupsActive() { return !!(S.match && S.match.powerups) && (S.mode === 'host' || S.mode === 'guest' || S.mode === 'bot'); }
   function updatePowerButton() {
     const btn = $('btn-power');
     const R = S.round;

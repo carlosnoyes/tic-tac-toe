@@ -98,7 +98,8 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 #join-code { text-transform: uppercase; letter-spacing: 3px; font-weight: 700; width: 100%; }
 
 .puzzle-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.pl-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--border); }
+.pl-item { font: inherit; color: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s, transform 0.1s; display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--border); }
+.pl-item:hover { border-color: var(--me); transform: translateY(-1px); }
 .pl-icon { font-size: 1.5rem; }
 .pl-name { font-weight: 700; }
 .pl-blurb { color: var(--dim); font-size: 0.8rem; }
