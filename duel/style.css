@@ -327,6 +327,13 @@ button.menu-card:hover { transform: translateY(-2px); border-color: var(--border
 .wtile:active { transform: scale(0.92); }
 .wtile.used { opacity: 0.25; }
 
+/* Flash recall */
+.recall-grid { width: min(100%, 380px); }
+.rcell { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); background: var(--bg2); cursor: pointer; transition: background 0.12s, box-shadow 0.12s; }
+.rcell.lit { background: radial-gradient(circle, #e1bee7, #ab47bc); box-shadow: 0 0 16px rgba(171,71,188,0.7); border-color: #e1bee7; }
+.rcell.hit { background: rgba(105,240,174,0.25); border-color: var(--good); }
+.rcell.miss { background: rgba(255,110,110,0.3); border-color: var(--bad); }
+
 /* ── overlays ── */
 .overlay { position: fixed; inset: 0; background: rgba(5,5,18,0.78); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; animation: fade-in 0.2s; }
 .cd-card, .res-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 28px 32px; text-align: center; max-width: 420px; width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }

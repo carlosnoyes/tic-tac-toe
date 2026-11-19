@@ -882,6 +882,62 @@
     },
   });
 
+  // ───────────────────────── Flash Recall ─────────────────────────
+  register({
+    id: 'recall', name: 'Flash Recall', icon: '🧠',
+    blurb: 'Memorise the flashed pattern, then tap it back.',
+    how: 'Tiles light up for a moment — tap every one once they go dark. Patterns grow each level.',
+    bot: { easy: 22, normal: 32, hard: 45 },
+    create(root, api) {
+      const n = pick(api.diff, 4, 5, 5);
+      const LEVELS = 6;
+      const startCount = pick(api.diff, 3, 4, 6);
+      const showMs = pick(api.diff, 1100, 1000, 900);
+      const patterns = Array.from({ length: LEVELS }, (_, k) =>
+        new Set(api.rng.shuffle(Array.from({ length: n * n }, (_, i) => i)).slice(0, startCount + k)));
+      let lv = 0, found = new Set(), showing = false, timer = null;
+      const lvEl = el('div', { class: 'puzzle-note' });
+      const grid = el('div', { class: 'grid recall-grid', style: { gridTemplateColumns: `repeat(${n}, 1fr)` } });
+      const cells = Array.from({ length: n * n }, (_, i) => {
+        const d = el('button', { class: 'rcell' });
+        onPress(d, () => tap(i));
+        grid.appendChild(d); return d;
+      });
+      function show() {
+        const pat = patterns[lv];
+        found = new Set(); showing = true;
+        lvEl.textContent = `Level ${lv + 1} / ${LEVELS} · ${pat.size} tiles`;
+        cells.forEach((c, i) => { c.className = 'rcell' + (pat.has(i) ? ' lit' : ''); });
+        clearTimeout(timer);
+        timer = setTimeout(() => { showing = false; cells.forEach(c => { c.className = 'rcell'; }); }, showMs);
+      }
+      function tap(i) {
+        if (showing) return;
+        const pat = patterns[lv];
+        if (found.has(i)) return;
+        if (pat.has(i)) {
+          found.add(i); cells[i].className = 'rcell hit'; Sound.click();
+          api.progress((lv + found.size / pat.size) / LEVELS);
+          if (found.size === pat.size) {
+            Sound.good(); lv++;
+            api.progress(lv / LEVELS);
+            if (lv >= LEVELS) { api.done(); return; }
+            timer = setTimeout(show, 350);
+          }
+        } else {
+          Sound.bad(); cells[i].className = 'rcell miss'; shake(grid);
+          // reveal the pattern again after a short freeze
+          api.penalty(1000, 'Wrong tile!');
+          timer = setTimeout(show, 1050);
+        }
+      }
+      // first flash starts when the puzzle becomes visible (after GO)
+      const obs = setInterval(() => { if (root.style.visibility !== 'hidden' && root.isConnected) { clearInterval(obs); show(); } }, 50);
+      root.append(lvEl, grid);
+      return { destroy() { clearTimeout(timer); clearInterval(obs); } };
+    },
+  });
+
   window.PD = window.PD || {};
   PD.Puzzles = { list: registry, byId, register, pick, onPress };
 })();
