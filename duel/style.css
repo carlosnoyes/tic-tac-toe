@@ -87,6 +87,9 @@ h1 {
 }
 button.menu-card:hover { transform: translateY(-2px); border-color: var(--border2); background: var(--surface2); }
 .menu-card.primary { background: linear-gradient(135deg, rgba(58,168,224,0.22), rgba(124,92,240,0.22)); border-color: #4a4ab0; }
+.menu-card.daily { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(255,213,79,0.12), rgba(244,143,177,0.12)); border-color: #6a5a40; }
+.challenge-banner { display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; border-color: var(--gold); background: rgba(255,213,79,0.08); }
+.cb-title { font-weight: 900; font-size: 1.2rem; color: var(--gold); }
 .mc-icon { font-size: 1.6rem; }
 .mc-title { font-weight: 700; font-size: 1.05rem; }
 .mc-sub { color: var(--dim); font-size: 0.85rem; }

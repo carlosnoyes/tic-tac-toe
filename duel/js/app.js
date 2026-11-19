@@ -37,6 +37,7 @@
   const nameOf = role => {
     if (S.mode === 'local') return role === 'host' ? myName() : S.local.p2;
     if (S.mode === 'bot') return role === 'host' ? myName() : BOT_NAMES[S.settings.bot];
+    if (S.mode === 'daily') return role === 'host' ? myName() : (S.daily && S.daily.vs ? S.daily.vs.n : 'Par ⏱');
     return role === myRole() ? myName() : (S.oppName || 'Rival');
   };
   const myName = () => ($('name-input').value.trim() || 'Player');
@@ -56,7 +57,18 @@
   function overlay(id, on) { $(id).classList.toggle('hidden', !on); }
 
   // ─────────────── home ───────────────
+  function showChallengeIntro(vs) {
+    const box = $('challenge-banner');
+    const total = vs.t.every(t => t != null) ? fmtTime(vs.t.reduce((a, b) => a + b, 0)) : 'DNF';
+    box.innerHTML = '';
+    box.append(el('div', { class: 'cb-title' }, `⚔️ ${vs.n} challenged you!`),
+      el('div', { class: 'muted small' }, `Daily puzzles from ${vs.d} · their total: ${total}. Race their ghost through the same 3 puzzles.`),
+      el('button', { class: 'btn primary', onclick: () => { box.classList.add('hidden'); startDaily(vs); } }, 'Accept challenge'));
+    box.classList.remove('hidden');
+  }
+
   function renderHome() {
+    renderDailyCard();
     const list = $('puzzle-list'); list.innerHTML = '';
     const best = (store('stats') || {}).best || {};
     P.list.forEach(p => {
@@ -411,9 +423,14 @@
     if (winner) M.scores[winner]++;
     const entry = { i: R.i, pid: R.pid, winner, reason, times: { ...t }, prog: { ...R.prog } };
     M.history.push(entry);
-    const target = Math.floor(M.rounds / 2) + 1;
+    const target = M.playAll ? Infinity : Math.floor(M.rounds / 2) + 1;
     let over = false, matchWinner = null;
-    if (M.scores.host >= target) { over = true; matchWinner = 'host'; }
+    if (M.playAll) {
+      if (M.history.length >= M.rounds) {
+        over = true;
+        if (M.scores.host !== M.scores.guest) matchWinner = M.scores.host > M.scores.guest ? 'host' : 'guest';
+      }
+    } else if (M.scores.host >= target) { over = true; matchWinner = 'host'; }
     else if (M.scores.guest >= target) { over = true; matchWinner = 'guest'; }
     else if (M.history.length >= M.rounds && M.scores.host !== M.scores.guest) { over = true; matchWinner = M.scores.host > M.scores.guest ? 'host' : 'guest'; }
     else if (M.history.length >= M.rounds + 4) { over = true; matchWinner = null; } // safety: too many draws
@@ -427,7 +444,7 @@
     S.match = Object.assign({}, match, { scores: { host: 0, guest: 0 }, history: [] });
     S.rematch = { host: false, guest: false };
     $('hud-me-name').textContent = S.mode === 'local' ? myName() : myName();
-    $('hud-opp-name').textContent = S.mode === 'bot' ? BOT_NAMES[S.settings.bot] : nameOf(oppRole());
+    $('hud-opp-name').textContent = nameOf(oppRole());
     updateScores();
     show('game');
   }
@@ -524,6 +541,7 @@
       R.myDone = false;
       if (R.initProg) api.progress(R.initProg);
       if (S.mode === 'bot') startBot(R);
+      if (S.mode === 'daily') startDailyGhost(R);
       if (S.mode === 'local' && R.turn === 'guest') startGhost(R);
       if (isAuthority() && S.mode !== 'local') {
         R.limitTimer = setTimeout(() => { if (S.round === R) { timeUp(); hostResolve(); } }, R.limit * 1000 + 600);
@@ -700,9 +718,11 @@
       tb.appendChild(el('tr', null, el('td', null, String(h.i + 1)), el('td', null, pz.icon + ' ' + pz.name), cell(left), cell(right)));
     });
     $('rematch-hint').textContent = '';
+    $('btn-rematch').classList.toggle('hidden', S.mode === 'daily');
+    if (S.mode === 'daily') dailyFinished();
     $('btn-final-home').textContent = (S.mode === 'host' || S.mode === 'guest') ? 'Back to lobby' : 'Home';
     // stats (only for online + bot)
-    if (S.mode !== 'local') {
+    if (S.mode !== 'local' && S.mode !== 'daily') {
       const st = store('stats') || {};
       st.played = (st.played || 0) + 1;
       if (winner === me) st.won = (st.won || 0) + 1;
@@ -798,10 +818,88 @@
   }
 
   async function shareResult() {
-    const text = resultText();
+    const text = S.mode === 'daily' ? dailyShareText() : resultText();
     if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) { try { await navigator.share({ text }); return; } catch (e) {} }
     try { await navigator.clipboard.writeText(text); toast('Result copied — paste it anywhere!'); }
     catch (e) { prompt('Copy your result:', text); }
+  }
+
+  // ─────────────── daily challenge ───────────────
+  function todayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
+  function dailySetup(date) {
+    let h = 2166136261;
+    for (const ch of 'pduel-daily-' + date) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    const seed = h >>> 0;
+    const pool = makeRng(seed).shuffle(P.list.map(p => p.id)).slice(0, 3);
+    return { seed, pool };
+  }
+  function startDaily(vs) {
+    teardownNet();
+    const date = vs && vs.d ? vs.d : todayKey();
+    const { seed, pool } = dailySetup(date);
+    S.mode = 'daily';
+    S.daily = { date, vs: vs || null };
+    beginMatch({ seed, rounds: 3, diff: 'normal', pool, order: 'random', playAll: true });
+    setTimeout(() => hostNextRound(), 300);
+  }
+  function startDailyGhost(R) {
+    // ghost of a friend's run (from a challenge link) or "par" (bot pro pace)
+    const vs = S.daily && S.daily.vs;
+    const pz = P.byId[R.pid];
+    const t = vs ? (vs.t[R.i] != null ? vs.t[R.i] : null) : pz.bot.normal * 1000;
+    const finalP = vs && vs.t[R.i] == null ? (vs.p && vs.p[R.i] || 0.5) : 1;
+    R.bot = setInterval(() => {
+      if (R.resolved) { clearInterval(R.bot); return; }
+      const el2 = performance.now() - R.startAt;
+      if (t == null) { const p = Math.min(finalP, el2 / (R.limit * 1000) * finalP); R.prog.guest = p; setBar('guest', p); return; }
+      const p = Math.min(1, el2 / t);
+      R.prog.guest = p; setBar('guest', p);
+      if (el2 >= t) { clearInterval(R.bot); markFinished('guest', t); hostFinish('guest', t); }
+    }, 100);
+  }
+  function dailyFinished() {
+    const M = S.match, D = S.daily;
+    const times = M.history.map(h => h.times.host != null ? Math.round(h.times.host) : null);
+    const prog = M.history.map(h => Math.round((h.prog.host || 0) * 100) / 100);
+    const total = times.reduce((a, t) => a + (t == null ? 999000 : t), 0);
+    D.mine = { times, prog, total };
+    const key = 'daily:' + D.date;
+    const prev = store(key);
+    if (!prev && D.date === todayKey()) store(key, D.mine);
+    const allDone = times.every(t => t != null);
+    $('final-title').textContent = D.vs ? $('final-title').textContent : (allDone ? 'Daily complete!' : 'Daily done');
+    $('final-emoji').textContent = D.vs ? $('final-emoji').textContent : '📅';
+    $('rematch-hint').innerHTML = `Total time: <b>${allDone ? fmtTime(total) : 'DNF'}</b>` + (prev && D.date === todayKey() ? ` · first attempt today: ${prev.times.every(t => t != null) ? fmtTime(prev.total) : 'DNF'}` : '') + '<br>Share your result to challenge friends to beat your ghost!';
+    $('btn-share-result').textContent = '⚔️ Challenge a friend';
+  }
+  function challengeLink() {
+    const D = S.daily;
+    const data = { d: D.date, n: myName(), t: D.mine.times, p: D.mine.prog };
+    const enc = btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/=+$/, '');
+    return location.origin + location.pathname + location.search + '#c=' + enc;
+  }
+  function parseChallenge(hash) {
+    try {
+      const d = JSON.parse(decodeURIComponent(escape(atob(hash))));
+      if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d.d) || !Array.isArray(d.t)) return null;
+      return { d: d.d, n: String(d.n || 'Friend').slice(0, 16), t: d.t.slice(0, 3).map(x => (typeof x === 'number' && x > 0 ? x : null)), p: Array.isArray(d.p) ? d.p.slice(0, 3).map(Number) : [] };
+    } catch (e) { return null; }
+  }
+  function dailyShareText() {
+    const D = S.daily, M = S.match;
+    const lines = [`📅 Puzzle Duel Daily ${D.date}`];
+    M.history.forEach(h => { const pz = P.byId[h.pid]; lines.push(`${pz.icon} ${pz.name}: ${h.times.host != null ? fmtTime(h.times.host) : 'DNF'}`); });
+    const allDone = D.mine.times.every(t => t != null);
+    lines.push(`Total: ${allDone ? fmtTime(D.mine.total) : 'DNF'}`);
+    if (D.vs) lines.push(`(vs ${D.vs.n}: ${M.scores.host}–${M.scores.guest})`);
+    lines.push('Beat my ghost 👉 ' + challengeLink());
+    return lines.join('\n');
+  }
+  function renderDailyCard() {
+    const key = todayKey();
+    const mine = store('daily:' + key);
+    const { pool } = dailySetup(key);
+    $('daily-sub').textContent = pool.map(id => P.byId[id].icon).join(' ') + '  ·  ' + (mine ? `Today: ${mine.times.every(t => t != null) ? fmtTime(mine.total) : 'DNF'} — play again?` : 'Same 3 puzzles for everyone today');
   }
 
   // ─────────────── bot ───────────────
@@ -968,8 +1066,15 @@
 
     window.addEventListener('beforeunload', () => { if (S.net) try { S.net.send({ t: 'bye' }); } catch (e) {} });
 
+    $('btn-daily').onclick = () => { Sound.click(); startDaily(null); };
     renderHome();
-    // invite link: #CODE
+    // challenge link: #c=...   invite link: #CODE
+    if (location.hash.startsWith('#c=')) {
+      const vs = parseChallenge(location.hash.slice(3));
+      history.replaceState(null, '', location.pathname + location.search);
+      if (vs) { S.pendingChallenge = vs; showChallengeIntro(vs); }
+      return;
+    }
     const hash = PD.Net.normalizeCode(location.hash.slice(1));
     if (hash.length >= 4) { $('join-code').value = hash; startJoin(hash); }
   }
